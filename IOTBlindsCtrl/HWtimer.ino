@@ -16,6 +16,7 @@ CHwTimer::CHwTimer() { // constructor
   timer_enabled = false;
 #if defined(ARDUINO_ARCH_ESP32)
   timer = NULL;
+  utimex = 0;
 #endif
 }
 
@@ -223,7 +224,16 @@ void CHwTimer::reset() {
 }
 
 void CHwTimer::update(unsigned long utime) {
-  uint64_t ticks = (((uint64_t)utime)*TMR_PRESC_US/prescaler)-1;
+  if (utime == utimex) { // overcome bug that not allows to enter same time value twice
+    if (utime > 0) {
+      utimex = utime - 1;
+    } else {
+      utimex = 1;
+    }
+  } else {
+    utimex = utime;
+  }
+  uint64_t ticks = (((uint64_t)utimex)*TMR_PRESC_US/prescaler)-1;
   reset();
   timerAlarmWrite(timer, ticks, timer_reload);
 }

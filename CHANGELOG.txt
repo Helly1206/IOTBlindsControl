@@ -1,2 +1,9 @@
+[B]1.1.0[/B]
+- Added OTA (via webinterface) software update.
+- Changed timers to freeRTOS timers.
+- Fixed bug in HWtimer.
+- Added reset/ system diagnostics.
+- Change ssid, username and password settings to store encrypted in EEPROM to prevent IOT hacking
+
 [B]1.0.0[/B]
 - First working release.

@@ -83,6 +83,51 @@ void CChiller::boost(boolean doBoost) {
   }
 }
 
+String CChiller::getResetReason(int cpuNo) {
+  String retStr;
+  switch (rtc_get_reset_reason(cpuNo)) {
+    case 1  : retStr = "Vbat power on reset"; break;
+    case 3  : retStr = "Software reset digital core"; break;
+    case 4  : retStr = "Legacy watch dog reset digital core"; break;
+    case 5  : retStr = "Deep Sleep reset digital core"; break;
+    case 6  : retStr = "Reset by SLC module, reset digital core"; break;
+    case 7  : retStr = "Timer Group0 Watch dog reset digital core"; break;
+    case 8  : retStr = "Timer Group1 Watch dog reset digital core"; break;
+    case 9  : retStr = "RTC Watch dog Reset digital core"; break;
+    case 10 : retStr = "Instrusion tested to reset CPU"; break;
+    case 11 : retStr = "Time Group reset CPU"; break;
+    case 12 : retStr = "Software reset CPU"; break;
+    case 13 : retStr = "RTC Watch dog Reset CPU"; break;
+    case 14 : retStr = "for APP CPU, reseted by PRO CPU"; break;
+    case 15 : retStr = "Reset when the vdd voltage is not stable"; break;
+    case 16 : retStr = "RTC Watch dog reset digital core and rtc module"; break;
+    default : retStr = "Unknown reset reason";
+  }
+  return retStr;
+}
+
+String CChiller::getHeapMem() {
+  uint32_t freeHeap = ESP.getFreeHeap();
+  uint32_t sizeHeap = ESP.getHeapSize();
+  uint32_t usedHeap = sizeHeap-freeHeap;
+    
+  return String(float(usedHeap)/1024) + " kB [" + String((usedHeap*100)/sizeHeap) + " %]";
+}
+
+String CChiller::getProgramMem() {
+  uint32_t usedSketch = ESP.getSketchSize();
+  uint32_t freeSketch = ESP.getFreeSketchSpace();
+  return String(float(usedSketch)/1024) + " kB [" + String((usedSketch*100)/freeSketch) + " %]";
+}
+
+String CChiller::getVersion() {
+  return String(ESP.getSdkVersion());
+}
+
+String CChiller::getCPUFreq() {
+  return String(getCpuFrequencyMhz()) + " MHz/ " + String(getXtalFrequencyMhz()) + " MHz";
+}
+
 // Privates ........
 
 void CChiller::sleepMode(boolean on) {

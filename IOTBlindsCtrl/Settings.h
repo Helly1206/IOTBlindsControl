@@ -11,6 +11,7 @@
 #define IOTSettings_h
 
 #include <EEPROM.h>
+#include "mbedtls/aes.h"
 
 #ifdef DEBUG_SERIAL
 //#define DEBUG_SETTINGS
@@ -27,6 +28,12 @@
 #define DT_LONG   2
 #define DT_FLOAT  3
 #define DT_STRING 4
+#define DT_CYPHER 5
+
+#define IV_LEN    16
+#define KEY_BITS  256
+
+//#define DO_ENCRYPT // This can mess up settings
 
 class Item {
   public:
@@ -47,17 +54,21 @@ class cSettings {
     void get(Item *item, unsigned long &l);
     void get(Item *item, float &f);
     void get(Item *item, String &s);
+    void get(Item *item, char *s);
     byte getByte(Item *item);
     unsigned short getShort(Item *item);
     unsigned long getLong(Item *item);
     float getFloat(Item *item);
     String getString(Item *item);
+    String getDecrypt(Item *item);
 
     void set(Item *item, byte &b);
     void set(Item *item, unsigned short &s);
     void set(Item *item, unsigned long &l);
     void set(Item *item, float &f);
     void set(Item *item, String &s);
+    void set(Item *item, char *s);
+    void setEncrypt(Item *item, String &s);
 
     void update();
     unsigned short getSize(byte datatype);
@@ -111,6 +122,8 @@ class cSettings {
     void defaultBlindParameters();
     void defaultWifiParameters();
     void defaultMqttParameters();
+    void aesDecrypt(char *input, char *output, int dataLength);
+    void aesEncrypt(const char *input, char *output, int dataLength);
 };
 
 extern cSettings settings;

@@ -10,6 +10,8 @@
 #ifndef Chiller_h
 #define Chiller_h
 
+#include "rom/rtc.h"
+
 #ifdef DEBUG_SERIAL
 //#define DEBUG_CHILLER
 #endif
@@ -35,6 +37,11 @@ public:
   boolean getSleep();
   float getIdlePercentage();
   void boost(boolean doBoost);
+  String getResetReason(int cpuNo);
+  String getHeapMem();
+  String getProgramMem();
+  String getVersion();
+  String getCPUFreq();
 private:
   void sleepMode(boolean on);
   TickType_t xLastWakeTime;

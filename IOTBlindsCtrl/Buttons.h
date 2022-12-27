@@ -21,6 +21,9 @@
 #define BUTTONDN_PIN     -1
 #endif
 
+#define DEBOUNCE_TIME       200 /* ms */
+#define RESET_TIME          3000 /* ms */
+
 class CButtons {
 public:
   CButtons(); // constructor
@@ -31,9 +34,14 @@ private:
   enum buttonstate {idle, up, down, both, reset, upd, downd, bothd};
   void handleButton();
   buttonstate checkButton();
+
+  // static
+  static void timerCallback(TimerHandle_t xTimer);
   static void IRAM_ATTR isr_buttons();
   static portMUX_TYPE isrMux;
   volatile static buttonstate buttonState;
+  static TimerHandle_t timer;
+  StaticTimer_t timerBuffer;
 };
 
 extern CButtons buttons;

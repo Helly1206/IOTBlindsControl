@@ -18,6 +18,12 @@
 #define MQTT_SERVER "mqtt.broker.com"
 #define MQTT_PORT 1883
 
+#define MQTT_PUBLISH_TIME   1000 /* ms */
+#define MQTT_RECONNECT_TIME 5000 /* ms */
+
+#define CONNECT_TIMER       0
+#define PUBLISH_TIMER       1
+
 typedef struct { 
   String tag;
   String description;
@@ -80,6 +86,14 @@ class cMqtt {
     static boolean getBoolean2(String payload);
     static byte getPercentage(String payload);
     valueMem *publishMem;
+    boolean connecting;
+    static void timerCallback(TimerHandle_t xTimer);
+    TimerHandle_t conTimer;
+    StaticTimer_t conTimerBuffer;
+    static portMUX_TYPE mux;
+    TimerHandle_t pubTimer;
+    StaticTimer_t pubTimerBuffer;
+    static boolean doPub;
 };
 
 extern cMqtt mqtt;

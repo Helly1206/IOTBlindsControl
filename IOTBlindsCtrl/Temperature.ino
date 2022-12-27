@@ -16,11 +16,13 @@
 
 #include <OneWire.h>
 #include "Temperature.h"
-#include "Timers.h"
 #include "Blind.h"
 
 //Temperature chip i/o
 OneWire ds(DS18S20_PIN);
+
+portMUX_TYPE CTemp::mux = portMUX_INITIALIZER_UNLOCKED;
+boolean CTemp::sampled = false;
 
 CTemp::CTemp() { // constructor
   SampledTemp = ABS_ZERO;
@@ -29,12 +31,16 @@ CTemp::CTemp() { // constructor
 
 void CTemp::init(void) {
   ClearFilter();
-  timers.start(TIMER_TEMP, SAMPLE_TEMP, true);
+  timer = xTimerCreateStatic("", pdMS_TO_TICKS(SAMPLE_TEMP), pdTRUE, (void *)0, timerCallback, &timerBuffer);
+  xTimerStart(timer, portMAX_DELAY);
   tempState = start;
 }
 
 void CTemp::handle(void) {
-  if (timers.getTimer(TIMER_TEMP)) { // interval elapsed
+  if (sampled) { // interval elapsed
+    portENTER_CRITICAL(&mux);
+    sampled = false;
+    portEXIT_CRITICAL(&mux);
     switch (tempState) {
       case start:
         if (noDevice) {
@@ -273,5 +279,11 @@ void CTemp::ClearLimitFilter(void) {
 }
 
 #endif
+
+void CTemp::timerCallback(TimerHandle_t xTimer) {
+  portENTER_CRITICAL(&mux);
+  sampled = true;
+  portEXIT_CRITICAL(&mux);
+}
 
 CTemp temp;

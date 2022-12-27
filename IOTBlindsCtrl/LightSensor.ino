@@ -15,11 +15,14 @@
  */
  
 #include "LightSensor.h"
-#include "Timers.h"
 #include "Settings.h"
 
+CLightSensor::rawReadout CLightSensor::raw;
+portMUX_TYPE CLightSensor::mux = portMUX_INITIALIZER_UNLOCKED;
+
 CLightSensor::CLightSensor() { // constructor
-  Raw = 0;
+  raw.value = 0;
+  raw.sample = false;
   OutSunny = 0;
   OutTwilight = 0;
   Twilight = false;
@@ -33,15 +36,18 @@ CLightSensor::CLightSensor() { // constructor
 }
 
 void CLightSensor::init(void) {
-  timers.start(TIMER_SENSOR, settings.getShort(settings.SampleTime), true);
+  timer = xTimerCreateStatic("", pdMS_TO_TICKS(settings.getShort(settings.SampleTime)), pdTRUE, (void *)0, timerCallback, &timerBuffer);
+  xTimerStart(timer, portMAX_DELAY);
   reset();
 }
 
 void CLightSensor::handle(void) {
-  if (timers.getTimer(TIMER_SENSOR)) { // interval elapsed
-    Raw = analogRead(SENSOR_PINA)>>3; // use 10 bit resolution
+  if (raw.sample) { // interval elapsed
     CalcTwilight();
     CalcSunny();
+    portENTER_CRITICAL(&mux);
+    raw.sample = false;
+    portEXIT_CRITICAL(&mux);
   }
 }
 
@@ -71,6 +77,10 @@ void CLightSensor::setSunny(boolean bval) {
   }
 }
 
+unsigned short CLightSensor::getRaw() {
+  return raw.value;
+}
+
 void CLightSensor::CalcTwilight(void) {
   unsigned short Threshold;
   if (Twilight) { // if already dark, use hysteresis to get light again
@@ -79,7 +89,7 @@ void CLightSensor::CalcTwilight(void) {
     Threshold = settings.getShort(settings.TwilightThreshold);
   }
   // higher number is darker, so positive threshold
-  OutTwilight = Integrate(OutTwilight, settings.getShort(settings.TwilightIGain), CompThreshold(Raw, Threshold, POSITIVE));  
+  OutTwilight = Integrate(OutTwilight, settings.getShort(settings.TwilightIGain), CompThreshold(raw.value, Threshold, POSITIVE));  
   if (!Twilightd) {
     Twilight = CompThreshold(OutTwilight, settings.getShort(settings.OutputThreshold), POSITIVE);
     Twilightd = Twilight;
@@ -96,12 +106,12 @@ void CLightSensor::CalcSunny(void) {
     Threshold = settings.getShort(settings.SunnyThreshold);
   }
   // lower number is lighter, so negative threshold
-  OutSunny = Integrate(OutSunny, settings.getShort(settings.SunnyIGain), CompThreshold(Raw, Threshold, NEGATIVE));  
- #ifdef USE_PIND 
-  if (SENSOR_PIND) { // only check sunny if digital pin is high, otherwise broken sensor might detect as sunny
- #else
+  OutSunny = Integrate(OutSunny, settings.getShort(settings.SunnyIGain), CompThreshold(raw.value, Threshold, NEGATIVE));  
+#ifdef USE_PIND 
+  if (digitalRead(SENSOR_PIND) == HIGH) { // only check sunny if digital pin is high, otherwise broken sensor might detect as sunny
+#else
   if (true) {
- #endif
+#endif
     if (!Sunnyd) {
       Sunny = CompThreshold(OutSunny, settings.getShort(settings.OutputThreshold), POSITIVE);
       Sunnyd = Sunny;
@@ -139,6 +149,15 @@ boolean CLightSensor::CompThreshold(unsigned short value, unsigned short thresho
     Result = !Result;
   }
   return (Result);
+}
+
+void CLightSensor::timerCallback(TimerHandle_t xTimer) {
+  if (!raw.sample) {
+    portENTER_CRITICAL(&mux);    
+    raw.value = analogRead(SENSOR_PINA)>>3; // use 10 bit resolution
+    raw.sample = true;
+    portEXIT_CRITICAL(&mux);
+  }
 }
 
 CLightSensor lightSensor;

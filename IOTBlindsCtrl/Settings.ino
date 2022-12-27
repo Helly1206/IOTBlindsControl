@@ -10,6 +10,10 @@
 #include "Settings.h"
 #include "Defaults.h"
 
+const unsigned char INITIALIZATION_VECTOR[] = {0x2C, 0xCF, 0x47, 0xFB, 0x48, 0x1E, 0x10, 0x28, 0x0C, 0x51, 0xC8, 0x8C, 0xAB, 0x58, 0xE7, 0xBE};
+const unsigned char CYPHER_KEY[] = {0xF2, 0x58, 0xC6, 0x81, 0x6C, 0x31, 0x06, 0x4D, 0x6C, 0x77, 0x70, 0x5E, 0xAA, 0xDC, 0xC3, 0xC9, 
+                                    0xBF, 0x9A, 0xE8, 0x7C, 0x2E, 0x80, 0x6E, 0x7A, 0xB1, 0x0D, 0x0B, 0x6B, 0x13, 0x3E, 0xE1, 0x0C};
+
 Item::Item(byte _datatype, unsigned short _start) { // constructor
   datatype = _datatype;
   start = _start;
@@ -66,6 +70,25 @@ void cSettings::init() {
 #endif
     defaultMqttParameters();
   }
+#ifdef DO_ENCRYPT
+  Item *oldItem = new Item(DT_STRING, ssid->start, ssid->size);
+  String value;
+  get(oldItem, value);
+  set(ssid, value);
+  oldItem->start = password->start;
+  oldItem->size = password->size;  
+  get(oldItem, value);
+  set(password, value);
+  oldItem->start = mqttUsername->start;
+  oldItem->size = mqttUsername->size;
+  get(oldItem, value);
+  set(mqttUsername, value);
+  oldItem->start = mqttPassword->start;
+  oldItem->size = mqttPassword->size;
+  get(oldItem, value);
+  set(mqttPassword, value);  
+  update();
+#endif
 }
 
 void cSettings::get(Item *item, byte &b) {
@@ -102,6 +125,17 @@ void cSettings::get(Item *item, String &s) {
         s += c;
       }
     }
+  } else if (item->datatype == DT_CYPHER) {
+    s = getDecrypt(item);
+  }
+}
+
+void cSettings::get(Item *item, char *s) {
+  if ((item->datatype == DT_STRING) || (item->datatype == DT_CYPHER)) {
+    char c = '-';
+    for (unsigned short i = 0; (i < item->size); i++) {
+      s[i] = char(EEPROM.read(item->start + i));
+    }
   }
 }
 
@@ -133,6 +167,14 @@ String cSettings::getString(Item *item) {
   String s;
   get(item, s);
   return s;
+}
+
+String cSettings::getDecrypt(Item *item) {
+  char encrypted[item->size] = {0};
+  char decrypted[item->size] = {0};
+  get(item, encrypted);
+  aesDecrypt(encrypted, decrypted, item->size);
+  return String(decrypted);
 }
 
 void cSettings::set(Item *item, byte &b) {
@@ -171,7 +213,26 @@ void cSettings::set(Item *item, String &s) {
     for (i = s.length(); i < item->size; i++) {
       EEPROM.write(item->start + i, 0);
     }
+  } else if (item->datatype == DT_CYPHER) {
+    setEncrypt(item, s);
   }
+}
+
+void cSettings::set(Item *item, char *s) {
+  if ((item->datatype == DT_STRING) || (item->datatype == DT_CYPHER)) {
+    unsigned short i;
+    for (i = 0; i < item->size; i++) {
+      EEPROM.write(item->start + i, s[i]);
+    }
+  }
+}
+
+void cSettings::setEncrypt(Item *item, String &s) {
+  char decrypted[item->size] = {0};
+  char encrypted[item->size] = {0};
+  strcpy(decrypted, s.c_str());
+  aesEncrypt(decrypted, encrypted, item->size);
+  set(item, encrypted);
 }
 
 void cSettings::update() {
@@ -253,9 +314,9 @@ void cSettings::initParameters() {
   startAddress += getSize(DT_BYTE);
 
   // Wifi parameters
-  ssid = new Item(DT_STRING, startAddress, STANDARD_SIZE);
+  ssid = new Item(DT_CYPHER, startAddress, STANDARD_SIZE);
   startAddress += STANDARD_SIZE;
-  password = new Item(DT_STRING, startAddress, PASSWORD_SIZE);
+  password = new Item(DT_CYPHER, startAddress, PASSWORD_SIZE);
   startAddress += PASSWORD_SIZE;
   hostname = new Item(DT_STRING, startAddress, STANDARD_SIZE);
   startAddress += STANDARD_SIZE;
@@ -271,9 +332,9 @@ void cSettings::initParameters() {
   startAddress += STANDARD_SIZE;
   mqttPort = new Item(DT_SHORT, startAddress);            // [0..65535]
   startAddress += getSize(DT_SHORT);
-  mqttUsername = new Item(DT_STRING, startAddress, STANDARD_SIZE);
+  mqttUsername = new Item(DT_CYPHER, startAddress, STANDARD_SIZE);
   startAddress += STANDARD_SIZE;
-  mqttPassword = new Item(DT_STRING, startAddress, PASSWORD_SIZE);
+  mqttPassword = new Item(DT_CYPHER, startAddress, PASSWORD_SIZE);
   startAddress += PASSWORD_SIZE;
   mainTopic = new Item(DT_STRING, startAddress, PASSWORD_SIZE);
   startAddress += PASSWORD_SIZE;
@@ -360,6 +421,28 @@ void cSettings::defaultMqttParameters() {
     set(mqttRetain, bval = DEF_MQTTRETAIN);
     set(UseMqtt, bval = DEF_USEMQTT);
     update();
+}
+
+void cSettings::aesDecrypt(char *input, char *output, int dataLength) {
+  unsigned char iv[IV_LEN];
+  memcpy(iv, INITIALIZATION_VECTOR, IV_LEN);
+  if ((dataLength % 16) != 0) dataLength += 16 - (dataLength % 16);
+  mbedtls_aes_context aes;
+  mbedtls_aes_init(&aes);
+  mbedtls_aes_setkey_dec(&aes, CYPHER_KEY, KEY_BITS);
+  mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_DECRYPT, dataLength, iv, (const unsigned char*)input, (unsigned char *)output);
+  mbedtls_aes_free(&aes);
+}
+
+void cSettings::aesEncrypt(const char *input, char *output, int dataLength) {
+  unsigned char iv[IV_LEN];
+  memcpy(iv, INITIALIZATION_VECTOR, IV_LEN);
+  if ((dataLength % 16) != 0) dataLength += 16 - (dataLength % 16);
+  mbedtls_aes_context aes;
+  mbedtls_aes_init(&aes);
+  mbedtls_aes_setkey_dec(&aes, CYPHER_KEY, KEY_BITS);
+  mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_ENCRYPT, dataLength, iv, (const unsigned char*)input, (unsigned char *)output);
+  mbedtls_aes_free(&aes);
 }
 
 cSettings settings;

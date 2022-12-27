@@ -1,6 +1,6 @@
-/* 
+/*
  * IOTBlindCtrl - WebServer
- * Webserver for accessing IOTBlindsCtrl and change settings 
+ * Webserver for accessing IOTBlindsCtrl and change settings
  * Hardware: Lolin S2 Mini
  * Version 0.80
  * 14-5-2021
@@ -11,9 +11,14 @@
 #define IOTWebServer_h
 
 #include <WebServer.h>
+#include <Update.h>
 
 #ifdef DEBUG_SERIAL
 #define DEBUG_WEBSERVER
+#endif
+
+#ifndef APPVERSION
+#define APPVERSION       "N.A."
 #endif
 
 #define MAXSHORT 65535
@@ -48,6 +53,8 @@ class cWebServer {
     static void handleWifiUpdate();
     static void handleWifiSave();
     static void handleWifiMiscSave();
+    static void handleWifiUpdateOTA();
+    static void handleWifiUpdateOTAResult();
     static void handleBlindLoad();
     static void handleBlindSave();
     static String getMqttStatus(boolean UseMqtt);

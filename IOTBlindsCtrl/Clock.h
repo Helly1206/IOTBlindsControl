@@ -34,6 +34,8 @@ class cClock {
     unsigned long getTime();
     String getFormattedDate();
     String getFormattedTime();
+    String getFormattedBootDate();
+    String getFormattedBootTime();
     boolean changedMOD();
     unsigned short getMOD();
     void newCommand();
@@ -48,6 +50,7 @@ class cClock {
     unsigned long updateInterval;  // In ms
     unsigned long currentEpoc;      // In s
     unsigned long lastUpdate;      // In ms
+    unsigned long rebootEpoc;      // In s
     byte packetBuffer[NTP_PACKET_SIZE];
     void sendNTPPacket();
     void begin();
@@ -58,6 +61,8 @@ class cClock {
     int getStopDSTDay(int y);
     boolean getDST(unsigned long nowTime);
     void handleFixedTimes();
+    String formatDate(unsigned long rawTime);
+    String formatTime(unsigned long rawTime);
     boolean minuteBit;
     boolean minuteChanged;
     boolean commandToday;

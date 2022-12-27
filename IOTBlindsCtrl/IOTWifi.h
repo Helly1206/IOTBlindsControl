@@ -46,6 +46,7 @@ class cIOTWifi {
     String hostname;
     boolean connected;
   private:
+    enum timerstatus {none = 0, timeout = 1, mdns = 2};
     void connectAccessPoint();
     bool compSsidPass(String password);
     void connectWifi(bool force);
@@ -53,6 +54,11 @@ class cIOTWifi {
     DNSServer *dnsServer;
     IPAddress *netMsk;
     unsigned int status;
+    static void timerCallback(TimerHandle_t xTimer);
+    TimerHandle_t timer;
+    StaticTimer_t timerBuffer;
+    static portMUX_TYPE mux;
+    static timerstatus timerStatus;
 };
 
 extern cIOTWifi iotWifi;

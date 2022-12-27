@@ -1,4 +1,4 @@
-/* 
+/*
  * IOTBlindCtrl - Webpage
  * Webpage content
  * Hardware: Lolin S2 Mini
@@ -38,7 +38,7 @@ const char webStart[] = R"literal(
         };
         xhttp.open("GET", "menuload", true);
         xhttp.send();
-      }  
+      }
     </script>
   </head>)literal";
 
@@ -55,11 +55,11 @@ body {
   display: inline-block;
   font-size: 14px;
 }
-.headertable table { 
-  height: 100px; 
+.headertable table {
+  height: 100px;
   width: 100%;
-  border-collapse: collapse; 
-  border-spacing: 0px; 
+  border-collapse: collapse;
+  border-spacing: 0px;
   border: none;
 }
 .headertable tr {
@@ -90,10 +90,10 @@ body {
 .headertable b {
   color: white;
 }
-.bannertable table { 
+.bannertable table {
   width: 100%;
-  border-collapse: collapse; 
-  border-spacing: 0px; 
+  border-collapse: collapse;
+  border-spacing: 0px;
 }
 .bannertable tr {
   border: none;
@@ -114,26 +114,29 @@ body {
   color: white;
 }
 .navselected {
-  background-color: #1A1A1A !important; 
-  width: 16.667%; 
-  text-align: center; 
+  background-color: #1A1A1A !important;
+  width: 16.667%;
+  text-align: center;
   vertical-align: middle;
 }
 .navunselected {
-  width: 16.667%; 
-  text-align: center; 
+  width: 16.667%;
+  text-align: center;
   vertical-align: middle;
 }
 .navtab {
-  background-color: #404040 !important; 
-  width: 16.667%; 
-  text-align: center; 
+  background-color: #404040 !important;
+  width: 16.667%;
+  text-align: center;
   vertical-align: middle;
 }
 .logging textarea {
   font-size: 12pt;
   width: 100%;
   height: 400px;
+}
+input[type="file"] {
+  display: none;
 }
 div.settings {
     display: inline-grid;
@@ -148,7 +151,7 @@ div.settings label {
   margin: 2px;
 }
 div.settings label:after {
-  content: ":"; 
+  content: ":";
 }
 div.settings span {
   margin: 2px;
@@ -197,7 +200,7 @@ const char webHead[] = R"literal(
     </tbody>
   </table>
 </div>)literal";
- 
+
 const char webHome[] = R"literal(
   <div class="settings">
     <label>Time</label>
@@ -239,7 +242,7 @@ const char webHome[] = R"literal(
   </div>
   <script type="text/javascript">
     onload = function() {menuIndex(); homeUpdate(1);}
-    setInterval(function() { homeUpdate(0); }, 1000); 
+    setInterval(function() { homeUpdate(0); }, 1000);
     function checkLimits(t) {
       if (t.hasAttribute("min")) {
         if (Number(t.value) < Number(t.getAttribute("min"))) {
@@ -376,9 +379,62 @@ const char webWifi[] = R"literal(
       <span>Reboot required</span>
     </div>
   </form>
+  <form method='POST' enctype='multipart/form-data'>
+    <div class="settings">
+      <b>Software update</b><span></span><span></span>
+      <label>Current version</label>
+      <span id="appversion">---</span>
+      <span></span>
+      <label>File</label>
+      <input type="text" readonly id="filetext" value="No file selected">
+      <div>
+        <button type="button" id="browsebutton" onclick="document.getElementById('updatefile').click()">Browse</button>
+        <input type="file" id="updatefile" onchange="fileChanged(this)" accept=".bin">
+      </div>
+      <label>Progress</label>
+      <center>
+        <progress class="progress" id="progresslevel" value="0" max="100"></progress>
+      </center>
+      <span id="percentlevel">0 %</span>
+      <span></span>
+      <input type='submit' id="submitButton" value='Update' disabled>
+      <span>System will reboot after updating</span>
+      <label>Status</label>
+      <span id="statusText">&nbsp;</span>
+      <span></span>
+    </div>
+  </form>
+  <div class="settings">
+    <b>Diagnostics</b><span></span><span></span>
+    <label>Reboot time</label>
+    <span id="reboottime">---</span>
+    <span></span>
+    <label>Reboot reason CPU 0</label>
+    <span id="rebootreason0">---</span>
+    <span></span>
+    <label>Reboot reason CPU 1</label>
+    <span id="rebootreason1">---</span>
+    <span></span>
+    <label>Heap memory usage</label>
+    <span id="heapmem">---</span>
+    <span></span>
+    <label>Program memory usage</label>
+    <span id="progmem">---</span>
+    <span></span>
+    <label>SDK version</label>
+    <span id="sdkversion">---</span>
+    <span></span>
+    <label>CPU/ xtal frequency</label>
+    <span id="cpufreq">---</span>
+    <span></span>
+  <div>  
   <script type="text/javascript">
     onload = function() {menuIndex(); wifiLoad(); wifiList();}
-    setInterval(function() { wifiUpdate(); }, 5000); 
+    setInterval(function() { wifiUpdate(); }, 5000);
+    document.getElementById('submitButton').addEventListener('click', function(event){
+      event.preventDefault();
+      uploadOTA();
+    });
     function checkLimits(t) {
       if (t.hasAttribute("min")) {
         if (Number(t.value) < Number(t.getAttribute("min"))) {
@@ -437,6 +493,30 @@ const char webWifi[] = R"literal(
           if ("usedst" in result) {
             document.getElementsByName("usedst")[0].checked = result.usedst;
           }
+          if ("appversion" in result) {
+            document.getElementById("appversion").innerHTML = result.appversion;
+          }
+          if ("reboottime" in result) {
+            document.getElementById("reboottime").innerHTML = result.reboottime;
+          }
+          if ("rebootreason0" in result) {
+            document.getElementById("rebootreason0").innerHTML = result.rebootreason0;
+          }
+          if ("rebootreason1" in result) {
+            document.getElementById("rebootreason1").innerHTML = result.rebootreason1;
+          }
+          if ("heapmem" in result) {
+            document.getElementById("heapmem").innerHTML = result.heapmem;
+          }
+          if ("progmem" in result) {
+            document.getElementById("progmem").innerHTML = result.progmem;
+          }
+          if ("sdkversion" in result) {
+            document.getElementById("sdkversion").innerHTML = result.sdkversion;
+          }
+          if ("cpufreq" in result) {
+            document.getElementById("cpufreq").innerHTML = result.cpufreq;
+          }
         }
       };
       xhttp.open("GET", "wifiload", true);
@@ -454,7 +534,7 @@ const char webWifi[] = R"literal(
             optData.innerHTML = wlanitem.content;
             optData.selected = wlanitem.select;
             el.appendChild(optData);
-          });        
+          });
         }
       };
       if (true) {
@@ -479,6 +559,60 @@ const char webWifi[] = R"literal(
       };
       xhttp.open("GET", "wifiupdate", true);
       xhttp.send();
+    }
+    function fileChanged(t) {
+      if (t.files.length > 0) {
+        document.getElementById("filetext").value = t.files[0].name;
+        if (t.files[0].name.split('.').pop().toLowerCase() == "bin") {
+          document.getElementById("submitButton").disabled = false;
+          document.getElementById("statusText").innerHTML = "Press Update to start";
+        } else {
+          document.getElementById("submitButton").disabled = true;
+          document.getElementById("statusText").innerHTML = "Selected file is not a binary file";
+        }
+      } else {
+        document.getElementById("filetext").value = "No file selected"
+        document.getElementById("submitButton").disabled = true;
+        document.getElementById("statusText").innerHTML = "Select file first";
+      }
+    }
+    function uploadOTA() {
+      var xhttp = new XMLHttpRequest();
+      xhttp.onreadystatechange = function() {
+        if (this.readyState == 4) {
+          switch (this.status) {
+            case 200:
+              window.statusText.innerHTML = 'Updated, (Refresh!) ...';
+              break;
+            case 400:
+              window.statusText.innerHTML = this.responseText;
+              break;
+            default:
+              window.statusText.innerHTML = 'Unknown error: ' + this.status;
+          }
+        }
+      }
+      if (document.getElementById("updatefile").files.length <= 0) {
+        document.getElementById("statusText").innerHTML = "No file selected";
+        document.getElementById("updatefile").disabled = false;
+        document.getElementById("browsebutton").disabled = false;
+        return;
+      }
+      document.getElementById("updatefile").disabled = false;
+      document.getElementById("browsebutton").disabled = true;
+      document.getElementById("submitButton").disabled = true;
+      xhttp.upload.addEventListener('progress', function(event) {
+        var percent = Math.round((event.loaded / event.total) * 100);
+        document.getElementById("progresslevel").value = percent;
+        document.getElementById("percentlevel").innerHTML = percent + " %";
+      });
+      xhttp.open("POST", "wifiupdateota", true);
+      var file = document.getElementById("updatefile").files[0];
+      xhttp.setRequestHeader('FileSize', file.size);
+      var data = new FormData();
+      data.append('file', file);
+      xhttp.send(data);
+      document.getElementById("statusText").innerHTML = "Updating ...";
     }
   </script>)literal";
 
@@ -559,7 +693,7 @@ const char webBlind[] = R"literal(
     </div>
   </form>
   <script type="text/javascript">
-    onload = function() {menuIndex(); blindLoad();} 
+    onload = function() {menuIndex(); blindLoad();}
     function checkLimits(t) {
       if (t.hasAttribute("min")) {
         if (Number(t.value) < Number(t.getAttribute("min"))) {
@@ -705,8 +839,8 @@ const char webMqtt[] = R"literal(
     </div>
   </form>
   <script type="text/javascript">
-    onload = function() {menuIndex(); mqttLoad();} 
-    setInterval(function() { mqttUpdate(); }, 5000); 
+    onload = function() {menuIndex(); mqttLoad();}
+    setInterval(function() { mqttUpdate(); }, 5000);
     function checkLimits(t) {
       if (t.hasAttribute("min")) {
         if (Number(t.value) < Number(t.getAttribute("min"))) {
@@ -812,7 +946,7 @@ const char webLog[] = R"literal(
   </div>
   <script type="text/javascript">
     onload = function() {menuIndex(); logLoad();}
-    setInterval(function() { logUpdate(); }, 1000); 
+    setInterval(function() { logUpdate(); }, 1000);
     function logLoad() {
       var xhttp = new XMLHttpRequest();
       var logarea = document.getElementsByName("logarea")[0];
@@ -823,7 +957,7 @@ const char webLog[] = R"literal(
         }
       }
       if (document.getElementsByName('autoscroll')[0].checked) {
-        logarea.scrollTop = logarea.scrollHeight;  
+        logarea.scrollTop = logarea.scrollHeight;
       }
       xhttp.open("GET", "logload", true);
       xhttp.send();
@@ -849,7 +983,7 @@ const char webLog[] = R"literal(
         if (lines>=1000) {
           var dlines = logarea.value.split("\n");
           dlines.splice(0, 1);
-          logarea.value = dlines.join("\n");  
+          logarea.value = dlines.join("\n");
         } else {
           lines += 1;
           added = true;

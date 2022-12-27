@@ -48,27 +48,38 @@ private:
                 up     = 1,
                 down   = 2,
                 both   = 3, 
-                flash  = 4,   // 0100
+                flsh   = 4,   // 0100
                 shrt   = 5,   // 0101
                 lng    = 6,   // 0110
                 stop   = 7,   // 0111
-                flash1 = 8,   // 1000
+                flsh1  = 8,   // 1000
                 shrt1  = 9,   // 1001
                 lng1   = 10,  // 1010
-                flash3 = 12,  // 1100
+                flsh3  = 12,  // 1100
                 shrt3  = 13,  // 1101
                 lng3   = 14}; // 1110
-  ledmode mode;
-  ledmode mode_q;
-  ledmode mode_d;
-  byte repeatCount;
-  boolean flashRunning;
-  unsigned long t1;
-  unsigned long t2;
-  boolean ledflash;
+  struct ledmodes {
+    ledmode c;
+    ledmode q;
+    ledmode d;   
+  };
+  struct ledflash {
+    byte repeatCount;
+    unsigned long t1;
+    unsigned long t2;
+    boolean isOn;
+  };
   void setMode(ledmode cmd);
-  void initLED(uint8_t pin);
-  void setLED(uint8_t pin, uint8_t value);
+  static void initLED(uint8_t pin);
+  static void setLED(uint8_t pin, uint8_t value);
+  static void timerCallback(TimerHandle_t xTimer);
+  static void flashOn(TimerHandle_t xTimer);
+  static void flashOff(TimerHandle_t xTimer);
+  TimerHandle_t timer;
+  StaticTimer_t timerBuffer;
+  static portMUX_TYPE mux;
+  static ledmodes modes;
+  static ledflash flash;
 };
 
 extern Cled LED;

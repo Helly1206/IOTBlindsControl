@@ -1,4 +1,4 @@
-/* 
+/*
  * IOTBlindsCtrl
  * Roller Blinds control software with IOT (web and MQTT communication)
  * Hardware: Lolin S2 Mini (based on HellysRollerBlind)
@@ -8,6 +8,8 @@
  */
 
 //#define DEBUG_SERIAL
+
+#define APPVERSION       "v1.1.0"
 
 #define BLINDUPDN_PIN  35 // GPIO35 // if blind then no chill or timer interrupts
 #define BLINDONOFF_PIN 33 // GPIO33
@@ -25,7 +27,6 @@
 #include "WebServer.h"
 #include "Chiller.h"
 #include "LEDs.h"
-#include "Timers.h"
 #include "Buttons.h"
 #include "Blind.h"
 #include "LightSensor.h"
@@ -38,11 +39,9 @@
 void setup() {
 #ifdef DEBUG_SERIAL
   Serial.begin(115200);
-  Serial.print("\n");
   delay(2000);
 #endif
   settings.init();
-  timers.init();
   LED.init();
   buttons.init();
   blind.init();

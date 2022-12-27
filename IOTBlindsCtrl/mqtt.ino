@@ -14,6 +14,9 @@
 #include "LightSensor.h"
 #include "Temperature.h"
 
+portMUX_TYPE cMqtt::mux = portMUX_INITIALIZER_UNLOCKED;
+boolean cMqtt::doPub = false;
+
 WiFiClient espClient;
 PubSubClient client(espClient);
 
@@ -43,15 +46,20 @@ void cMqtt::init() {
   }
   client.setCallback(callback);
   clientId = "IOTBlindsCtrl_" + iotWifi.MacPart(6);
-  timers.start(MQTT_PUBLISH, MQTT_PUBLISH_TIME, true);
+  conTimer = xTimerCreateStatic("", pdMS_TO_TICKS(MQTT_RECONNECT_TIME), pdFALSE, (void *)CONNECT_TIMER, timerCallback, &conTimerBuffer);
+  connecting = false;
+  pubTimer = xTimerCreateStatic("", pdMS_TO_TICKS(MQTT_PUBLISH_TIME), pdTRUE, (void *)PUBLISH_TIMER, timerCallback, &pubTimerBuffer);
+  xTimerStart(pubTimer, portMAX_DELAY);
 }
 
 void cMqtt::handle() {
   if (!client.connected()) {
     if ((iotWifi.connected) && ((boolean)settings.getByte(settings.UseMqtt))) {
-      if (!timers.running(MQTT_RECONNECT)) {
-        timers.start(MQTT_RECONNECT, MQTT_RECONNECT_TIME, false);
-      } else if (timers.getTimer(MQTT_RECONNECT)) {
+      if (!connecting) {
+        xTimerStart(conTimer, portMAX_DELAY);
+        connecting = true;
+      } else if (xTimerIsTimerActive(conTimer) == pdFALSE) {
+        connecting = false;        
         reconnect();
       }
     }
@@ -84,7 +92,7 @@ String cMqtt::getValue(String tag) {
   } else if (tag == temp_status) {
     value = String(temp.getRealTimeTemp());
   } else if (tag == light_status) {
-    value = String(lightSensor.Raw);
+    value = String(lightSensor.getRaw());
   }
   return value;
 }
@@ -142,40 +150,41 @@ void cMqtt::callback(char* topic, byte* payload, unsigned int length) {
 }
 
 void cMqtt::sendStatus() { // publish on connected or (every ten minutes or) when value changes (5 seconds for temperature and light, 1 second for pos)
-  if (connected) {
-    if (timers.getTimer(MQTT_PUBLISH)) {
-      int publishLen = (sizeof(PublishTopics) / sizeof(topics));
-      for (int i = 0; i < publishLen; i++) {
-        String val = getValue(PublishTopics[i].tag);
-        if (PublishTopics[i].tag == pos_status) {
-          if (val != publishMem[i].value) {
-            client.publish(buildTopic(PublishTopics[i].tag).c_str(), val.c_str(), (boolean)settings.getByte(settings.mqttRetain));
-            publishMem[i].value = val;
-            publishMem[i].updateCounter = 0;
+  if ((connected) && (doPub)) {
+    portENTER_CRITICAL(&mux);
+    doPub = false;
+    portEXIT_CRITICAL(&mux);
+    int publishLen = (sizeof(PublishTopics) / sizeof(topics));
+    for (int i = 0; i < publishLen; i++) {
+      String val = getValue(PublishTopics[i].tag);
+      if (PublishTopics[i].tag == pos_status) {
+        if (val != publishMem[i].value) {
+          client.publish(buildTopic(PublishTopics[i].tag).c_str(), val.c_str(), (boolean)settings.getByte(settings.mqttRetain));
+          publishMem[i].value = val;
+          publishMem[i].updateCounter = 0;
 #ifdef DEBUG_MQTT
-            Serial.print("DEBUG: Message published [");
-            Serial.print(buildTopic(PublishTopics[i].tag));
-            Serial.print("] ");
-            Serial.print(val);
-            Serial.println();
+          Serial.print("DEBUG: Message published [");
+          Serial.print(buildTopic(PublishTopics[i].tag));
+          Serial.print("] ");
+          Serial.print(val);
+          Serial.println();
 #endif
-          }
-        } else {
-          if ((publishMem[i].updateCounter >= 5) && (val != publishMem[i].value)) {
-            client.publish(buildTopic(PublishTopics[i].tag).c_str(), val.c_str(), (boolean)settings.getByte(settings.mqttRetain));
-            publishMem[i].value = val;
-            publishMem[i].updateCounter = 0;
- #ifdef DEBUG_MQTT
-            Serial.print("DEBUG: Message published [");
-            Serial.print(buildTopic(PublishTopics[i].tag));
-            Serial.print("] ");
-            Serial.print(val);
-            Serial.println();
-#endif
-          }
         }
-        publishMem[i].updateCounter++;
+      } else {
+        if ((publishMem[i].updateCounter >= 5) && (val != publishMem[i].value)) {
+          client.publish(buildTopic(PublishTopics[i].tag).c_str(), val.c_str(), (boolean)settings.getByte(settings.mqttRetain));
+          publishMem[i].value = val;
+          publishMem[i].updateCounter = 0;
+#ifdef DEBUG_MQTT
+          Serial.print("DEBUG: Message published [");
+          Serial.print(buildTopic(PublishTopics[i].tag));
+          Serial.print("] ");
+          Serial.print(val);
+          Serial.println();
+#endif
+        }
       }
+      publishMem[i].updateCounter++;
     }
   }
 }
@@ -270,6 +279,14 @@ byte cMqtt::getPercentage(String payload) {
     perc = 100;
   }
   return (byte)round(perc);
+}
+
+void cMqtt::timerCallback(TimerHandle_t xTimer) {
+  if ((uint32_t)pvTimerGetTimerID(xTimer) == PUBLISH_TIMER) {
+    portENTER_CRITICAL(&mux);
+    doPub = true;
+    portEXIT_CRITICAL(&mux);
+  }
 }
 
 cMqtt mqtt;

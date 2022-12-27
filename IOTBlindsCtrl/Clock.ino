@@ -18,6 +18,7 @@ cClock::cClock() { // constructor
   timeOffset = 0;
   updateInterval = UPDATE_INTERVAL;
   currentEpoc = 0;
+  rebootEpoc = 0;
   poolServerName = "";
   useDST = false;
   udpSetup = false;
@@ -75,31 +76,29 @@ unsigned long cClock::getTime() {
 }
 
 String cClock::getFormattedDate() {
-  unsigned long rawTime = this->getTime();
-  unsigned long y = year(rawTime);
-  String yearStr = String(y);
-
-  unsigned long m = month(rawTime);
-  String monthStr = m < 10 ? "0" + String(m) : String(m);
-
-  unsigned long d = day(rawTime);
-  String dayStr = d < 10 ? "0" + String(d) : String(d);
-
-  return yearStr + "-" + monthStr + "-" + dayStr;
+  return formatDate(this->getTime());
 }
 
 String cClock::getFormattedTime() {
-  unsigned long rawTime = this->getTime();
-  unsigned long h = hour(rawTime);
-  String hoursStr = h < 10 ? "0" + String(h) : String(h);
+  return formatTime(this->getTime());
+}
 
-  unsigned long m = minute(rawTime);
-  String minuteStr = m < 10 ? "0" + String(m) : String(m);
+String cClock::getFormattedBootDate() {
+  unsigned long dstOffset = 0;
+  unsigned long reboootTime =timeOffset + rebootEpoc;
+  if (useDST) {
+    dstOffset = getDST(reboootTime) ? 3600 : 0;
+  }
+  return formatDate(reboootTime + dstOffset);
+}
 
-  unsigned long s = second(rawTime);
-  String secondStr = s < 10 ? "0" + String(s) : String(s);
-
-  return hoursStr + ":" + minuteStr + ":" + secondStr;
+String cClock::getFormattedBootTime() {
+  unsigned long dstOffset = 0;
+  unsigned long reboootTime =timeOffset + rebootEpoc;
+  if (useDST) {
+    dstOffset = getDST(reboootTime) ? 3600 : 0;
+  }
+  return formatTime(reboootTime + dstOffset);
 }
 
 boolean cClock::changedMOD() {
@@ -183,6 +182,9 @@ boolean cClock::forceUpdate() {
   // combine the four bytes (two words) into a long integer, this is NTP time (seconds since Jan 1 1900):
   unsigned long secsSince1900 = highWord << 16 | lowWord;
   currentEpoc = secsSince1900 - SEVENZYYEARS;
+  if (rebootEpoc == 0) {
+    rebootEpoc = currentEpoc;
+  }
   return true;  // return true after successful update
 }
 
@@ -282,6 +284,32 @@ void cClock::handleFixedTimes() {
       }
     }
   }
+}
+
+String cClock::formatDate(unsigned long rawTime) {
+  unsigned long y = year(rawTime);
+  String yearStr = String(y);
+
+  unsigned long m = month(rawTime);
+  String monthStr = m < 10 ? "0" + String(m) : String(m);
+
+  unsigned long d = day(rawTime);
+  String dayStr = d < 10 ? "0" + String(d) : String(d);
+
+  return yearStr + "-" + monthStr + "-" + dayStr;
+}
+
+String cClock::formatTime(unsigned long rawTime) {
+  unsigned long h = hour(rawTime);
+  String hoursStr = h < 10 ? "0" + String(h) : String(h);
+
+  unsigned long m = minute(rawTime);
+  String minuteStr = m < 10 ? "0" + String(m) : String(m);
+
+  unsigned long s = second(rawTime);
+  String secondStr = s < 10 ? "0" + String(s) : String(s);
+
+  return hoursStr + ":" + minuteStr + ":" + secondStr;
 }
 
 cClock Clock;

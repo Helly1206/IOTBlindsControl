@@ -28,6 +28,8 @@
 #define ADDR0_DS18B20  (0x28)
 #define ABS_ZERO       (-273.15)
 
+#define SAMPLE_TEMP         1000 /* ms */ /* 5000 ms over 5 states */
+
 class CTemp {
 public:
   CTemp();
@@ -57,6 +59,11 @@ private:
 #endif
   float FilteredTemp;
   float SampledTemp;
+  static void timerCallback(TimerHandle_t xTimer);
+  TimerHandle_t timer;
+  StaticTimer_t timerBuffer;
+  static portMUX_TYPE mux;
+  static boolean sampled;
 };
 
 extern CTemp temp;

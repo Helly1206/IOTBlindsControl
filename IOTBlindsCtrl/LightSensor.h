@@ -29,7 +29,7 @@ public:
   void reset(void);
   void setTwilight(boolean bval);
   void setSunny(boolean bval);
-  unsigned short Raw;
+  unsigned short getRaw();
   unsigned short OutSunny;
   unsigned short OutTwilight;
   boolean Twilight;
@@ -37,11 +37,20 @@ public:
   boolean Twilightd;
   boolean Sunnyd;
 private:
+  struct rawReadout {
+    unsigned short value;
+    bool sample;
+  };
   void CalcDark(void);
   void CalcTwilight(void);
   void CalcSunny(void);
   unsigned short Integrate(unsigned short value, unsigned short gain, boolean sign);
   boolean CompThreshold(unsigned short value, unsigned short threshold, boolean sign);
+  static void timerCallback(TimerHandle_t xTimer);
+  TimerHandle_t timer;
+  StaticTimer_t timerBuffer;
+  static portMUX_TYPE mux;
+  static rawReadout raw;
 };
 
 extern CLightSensor lightSensor;

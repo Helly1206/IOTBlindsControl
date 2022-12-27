@@ -9,6 +9,10 @@
  
 #include "LEDs.h"
 
+Cled::ledmodes Cled::modes;
+Cled::ledflash Cled::flash;
+portMUX_TYPE Cled::mux = portMUX_INITIALIZER_UNLOCKED;
+
 Cled::Cled() {
   initLED(SLED_PIN);
   initLED(LEDUP_PIN);
@@ -19,27 +23,27 @@ void Cled::init() {
   setLED(SLED_PIN, LOW);
   setLED(LEDUP_PIN, LOW);
   setLED(LEDDN_PIN, LOW);
-  flashRunning = false;
-  t1 = 0;
-  t2 = 0;
-  mode_q = none;
-  mode_d = none;
-  mode = none;
-  repeatCount = 0;
-  ledflash = false;
+  flash.repeatCount = 0;
+  flash.t1 = 0;
+  flash.t2 = 0;
+  flash.isOn = false;
+  modes.q = none;
+  modes.d = none;
+  modes.c = none;
+  timer = xTimerCreateStatic("", pdMS_TO_TICKS(T_TIME3), pdFALSE, (void *)0, timerCallback, &timerBuffer);
 }
 
 void Cled::handle(void) {
-
-  if (mode != mode_d) {
-    if (mode == none) {
-      mode = mode_q;
-      mode_q = none;
+  portENTER_CRITICAL(&mux);
+  if (modes.c != modes.d) {
+    if (modes.c == none) {
+      modes.c = modes.q;
+      modes.q = none;
 #ifdef DEBUG_LED
-      Serial.print("DEBUG: cmd: +, mode: " + String(mode) + ", mode_q: " + String(mode_q) + "\n");
+      Serial.print("DEBUG: cmd: +, modes.c: " + String(modes.c) + ", modes.q: " + String(modes.q) + "\n");
 #endif
     }
-    switch(mode) {
+    switch(modes.c) {
       case up:
 #ifdef DEBUG_LED
         Serial.print("DEBUG: LED up\n");
@@ -64,77 +68,86 @@ void Cled::handle(void) {
         setLED(LEDDN_PIN, HIGH);
         setLED(SLED_PIN, HIGH);
         break;
-      case flash:
+      case flsh:
 #ifdef DEBUG_LED
         Serial.print("DEBUG: LED flash\n");
 #endif
-        t1 = T_TIME3;
-        t2 = T_TIME3;
-        repeatCount = 255;
+        flash.t1 = T_TIME3;
+        flash.t2 = T_TIME3;
+        flash.repeatCount = 255;
+        flashOn(timer);
         break;
       case shrt:
 #ifdef DEBUG_LED
         Serial.print("DEBUG: LED short\n");
 #endif
-        t1 = T_TIME2;
-        t2 = T_TIME1;
-        repeatCount = 255;
+        flash.t1 = T_TIME2;
+        flash.t2 = T_TIME1;
+        flash.repeatCount = 255;
+        flashOn(timer);
         break;
       case lng:
 #ifdef DEBUG_LED
         Serial.print("DEBUG: LED long\n");
 #endif
-        t1 = T_TIME1;
-        t2 = T_TIME2;
-        repeatCount = 255;
+        flash.t1 = T_TIME1;
+        flash.t2 = T_TIME2;
+        flash.repeatCount = 255;
+        flashOn(timer);
         break;
-      case flash1:
+      case flsh1:
 #ifdef DEBUG_LED
         Serial.print("DEBUG: LED flash1\n");
 #endif
-        t1 = T_TIME3;
-        t2 = T_TIME3;
-        repeatCount = 1;
+        flash.t1 = T_TIME3;
+        flash.t2 = T_TIME3;
+        flash.repeatCount = 1;
+        flashOn(timer);
         break;
       case shrt1:
 #ifdef DEBUG_LED
         Serial.print("DEBUG: LED short1\n");
 #endif
-        t1 = T_TIME2;
-        t2 = T_TIME1;
-        repeatCount = 1;
+        flash.t1 = T_TIME2;
+        flash.t2 = T_TIME1;
+        flash.repeatCount = 1;
+        flashOn(timer);
         break;
       case lng1:
 #ifdef DEBUG_LED
         Serial.print("DEBUG: LED long1\n");
 #endif
-        t1 = T_TIME1;
-        t2 = T_TIME2;
-        repeatCount = 1;
+        flash.t1 = T_TIME1;
+        flash.t2 = T_TIME2;
+        flash.repeatCount = 1;
+        flashOn(timer);
         break;
-      case flash3:
+      case flsh3:
 #ifdef DEBUG_LED
         Serial.print("DEBUG: LED flash3\n");
 #endif
-        t1 = T_TIME3;
-        t2 = T_TIME3;
-        repeatCount = 3;
+        flash.t1 = T_TIME3;
+        flash.t2 = T_TIME3;
+        flash.repeatCount = 3;
+        flashOn(timer);
         break;
       case shrt3:
 #ifdef DEBUG_LED
         Serial.print("DEBUG: LED short3\n");
 #endif
-        t1 = T_TIME2;
-        t2 = T_TIME1;
-        repeatCount = 3;
+        flash.t1 = T_TIME2;
+        flash.t2 = T_TIME1;
+        flash.repeatCount = 3;
+        flashOn(timer);
         break;
       case lng3:
 #ifdef DEBUG_LED
         Serial.print("DEBUG: LED long3\n");
 #endif
-        t1 = T_TIME1;
-        t2 = T_TIME2;
-        repeatCount = 3;
+        flash.t1 = T_TIME1;
+        flash.t2 = T_TIME2;
+        flash.repeatCount = 3;
+        flashOn(timer);
         break;
       default: //LED_STOP (none)
 #ifdef DEBUG_LED
@@ -147,49 +160,8 @@ void Cled::handle(void) {
     }
   }
 
-  mode_d = mode;
-
-  if (mode > both) { // flashing
-    if (!flashRunning) {
-      ledflash = true;
-    }
-    if ((ledflash) && ((!flashRunning) || (timers.getTimer(TIMER_LEDS)))) {
-      if (repeatCount > 0) {
-        setLED(LEDUP_PIN, HIGH);
-        setLED(LEDDN_PIN, HIGH);
-        setLED(SLED_PIN, HIGH);
-      } else {
-        mode = mode_q;
-        mode_q = none;
-#ifdef DEBUG_LED
-        Serial.print("DEBUG: cmd: -, mode: " + String(mode) + ", mode_q: " + String(mode_q) + "\n");
-#endif
-      }
-      if ((repeatCount > 0) && (repeatCount < 255)) {
-        repeatCount--;
-      }
-      timers.start(TIMER_LEDS, t1, false);
-      ledflash = false;
-      flashRunning = true;
-    } else if ((!ledflash) && (timers.getTimer(TIMER_LEDS))) {
-      if (repeatCount > 0) {
-        setLED(LEDUP_PIN, LOW);
-        setLED(LEDDN_PIN, LOW);
-        setLED(SLED_PIN, LOW);
-      } else {
-        mode = mode_q;
-        mode_q = none;
-#ifdef DEBUG_LED
-        Serial.print("DEBUG: cmd: -, mode: " + String(mode) + ", mode_q: " + String(mode_q) + "\n");
-#endif
-      }
-      timers.start(TIMER_LEDS, t2, false);
-      ledflash = true;
-      flashRunning = true;
-    }
-  } else {
-    flashRunning = false;
-  }
+  modes.d = modes.c;
+  portEXIT_CRITICAL(&mux);
 }
 
 void Cled::Up() {
@@ -256,44 +228,44 @@ void Cled::setMode(Cled::ledmode cmd) {
     case up:
     case down:
     case both:
-    case flash:
-      if (mode < shrt) { // motion mode
-        mode = cmd;
-        mode_q = none;
-      } else if (mode < flash1) { // wifi mode
-        mode_q = mode;
-        mode = cmd;
+    case flsh:
+      if (modes.c < shrt) { // motion mode
+        modes.c = cmd;
+        modes.q = none;
+      } else if (modes.c < flsh1) { // wifi mode
+        modes.q = modes.c;
+        modes.c = cmd;
       } else { // command mode
-        mode_q = cmd;
+        modes.q = cmd;
       }
       break;
     case shrt: // wifi modes
     case lng:
-      if (((mode > flash) && (mode < flash1)) || (mode == none)) { // wifi mode
-        mode = cmd;
-        mode_q = none;
+      if (((modes.c > flsh) && (modes.c < flsh1)) || (modes.c == none)) { // wifi mode
+        modes.c = cmd;
+        modes.q = none;
       } else { // motion, command mode
-        mode_q = cmd;
+        modes.q = cmd;
       }
       break;
     case stop:
-      mode_q = none;
-      if ((mode > flash) && (mode < flash1)) { // wifi mode
-        mode = none;
+      modes.q = none;
+      if ((modes.c > flsh) && (modes.c < flsh1)) { // wifi mode
+        modes.c = none;
       }
       break;
     default:  // command modes
-      if (mode < flash1) { // motion, wifi mode
-        mode_q = mode;
-        mode = cmd;
+      if (modes.c < flsh1) { // motion, wifi mode
+        modes.q = modes.c;
+        modes.c = cmd;
       } else { // wifi, command mode
-        mode = cmd;
-        mode_q = none;
+        modes.c = cmd;
+        modes.q = none;
       }
       break;
   }
 #ifdef DEBUG_LED
-  Serial.print("DEBUG: cmd: " + String(cmd) + ", mode: " + String(mode) + ", mode_q: " + String(mode_q) + "\n");
+  Serial.print("DEBUG: cmd: " + String(cmd) + ", modes.c: " + String(modes.c) + ", modes.q: " + String(modes.q) + "\n");
 #endif
 }
 
@@ -317,6 +289,46 @@ void Cled::setLED(uint8_t pin, uint8_t value) {
 #else
   digitalWrite(pin, value);  
 #endif
+}
+
+void Cled::timerCallback(TimerHandle_t xTimer) {
+  portENTER_CRITICAL(&mux);
+  if (modes.c > both) { // flashing
+    if (flash.repeatCount > 0) {
+      if (flash.isOn) {
+        flashOff(xTimer);
+      } else {
+        flashOn(xTimer);
+      }
+    } else {
+      modes.c = modes.q;
+      modes.q = none;
+      flash.isOn = false;
+#ifdef DEBUG_LED
+      Serial.print("DEBUG: cmd: -, modes.c: " + String(modes.c) + ", modes.q: " + String(modes.q) + "\n");
+#endif
+    }
+  }
+  portEXIT_CRITICAL(&mux);
+}
+
+void Cled::flashOn(TimerHandle_t xTimer) {
+  setLED(LEDUP_PIN, HIGH);
+  setLED(LEDDN_PIN, HIGH);
+  setLED(SLED_PIN, HIGH);
+  if ((flash.repeatCount > 0) && (flash.repeatCount < 255)) {
+    flash.repeatCount--;
+  }
+  xTimerChangePeriod(xTimer, pdMS_TO_TICKS(flash.t1), portMAX_DELAY);
+  flash.isOn = true; 
+}
+
+void Cled::flashOff(TimerHandle_t xTimer) {
+  setLED(LEDUP_PIN, LOW);
+  setLED(LEDDN_PIN, LOW);
+  setLED(SLED_PIN, LOW);
+  xTimerChangePeriod(xTimer, pdMS_TO_TICKS(flash.t2), portMAX_DELAY);
+  flash.isOn = false;
 }
 
 Cled LED;

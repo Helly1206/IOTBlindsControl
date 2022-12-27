@@ -1,4 +1,4 @@
-IOTBlindsControl v0.96
+IOTBlindsControl v1.1.0
 
 IOTBlindsControl - Smarthome controller for roller blinds
 ================ = ========= ========== === ====== ======
@@ -55,9 +55,13 @@ Functions:
 Installation:
 -------------
 - Clone from github or download zip and unpack it
-- Open IOTBlindsControl in Arduino IDE (I used Arduino IDE 2.0.2)
+- Open IOTBlindsControl in Arduino IDE (I used Arduino IDE 2.0.3)
 - Select correct microcontroller (howto's can be found online)
 - Build and download code
+
+If you upload the code, you can update to a new version via the web interface
+(OTA = Over The Air). Just download the bin file in the bin folder, select it
+and press the upload button. No USB connection required.
 
 That's all for now ...
 

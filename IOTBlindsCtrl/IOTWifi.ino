@@ -10,7 +10,9 @@
 #include "IOTWifi.h"
 #include "Settings.h"
 #include "LEDs.h"
-#include "Timers.h"
+
+cIOTWifi::timerstatus cIOTWifi::timerStatus = none;
+portMUX_TYPE cIOTWifi::mux = portMUX_INITIALIZER_UNLOCKED;
 
 cIOTWifi::cIOTWifi() { // constructor
   AccessPoint = false;
@@ -25,6 +27,7 @@ void cIOTWifi::init() {
   pinMode(FLASH_PIN, INPUT_PULLUP);
   APssid = String(APSSID)+ "_" + MacPart(6);
   settings.get(settings.hostname, hostname);
+  timer = xTimerCreateStatic("", pdMS_TO_TICKS(CONNECTIONDELAY), pdFALSE, (void *)0, timerCallback, &timerBuffer);
   connectWifi(false);
   LED.WifiNC();
   
@@ -56,7 +59,10 @@ void cIOTWifi::handle() {
           Serial.print(WiFi.localIP());
           Serial.print("\n");
 #endif
-          timers.start(TIMER_WIFI, MDNSCONNECTDELAY, false);
+          xTimerChangePeriod(timer, pdMS_TO_TICKS(MDNSCONNECTDELAY), portMAX_DELAY);
+          portENTER_CRITICAL(&mux);
+          timerStatus = none;
+          portEXIT_CRITICAL(&mux);
           LED.WifiC();
           connected = true;
       } else {
@@ -81,38 +87,41 @@ void cIOTWifi::handle() {
 #endif
         LED.WifiNC();
         connected = false;
+        if (status == WL_CONNECTED) {
+          MDNS.end();
+        }
       }
     }
     if (s != WL_CONNECTED) {
-      if ((!digitalRead(FLASH_PIN)) || (buttons.initButtonPressed()) || (timers.getTimer(TIMER_WIFI))) { // enter access point mode
+      if ((!digitalRead(FLASH_PIN)) || (buttons.initButtonPressed()) || (timerStatus == timeout)) { // enter access point mode
 #ifdef DEBUG_IOTWIFI
         Serial.print("Wifi: Setting up as access point\n");
 #endif            
+        portENTER_CRITICAL(&mux);
+        timerStatus = none;
+        portEXIT_CRITICAL(&mux);
         connectAccessPoint();
       }
     }
-    if (s == WL_CONNECTED) {
-      if (timers.running(TIMER_WIFI)) {
-        if (timers.getTimer(TIMER_WIFI)) {
-          // Setup MDNS responder
-          if (!MDNS.begin(hostname.c_str())) {
+    if (timerStatus == mdns) {
+      portENTER_CRITICAL(&mux);
+      timerStatus = none;
+      portEXIT_CRITICAL(&mux);
+      // Setup MDNS responder
+      if (!MDNS.begin(hostname.c_str())) {
 #ifdef DEBUG_IOTWIFI
-            Serial.print("Wifi: Error setting up MDNS responder!\n");
+        Serial.print("Wifi: Error setting up MDNS responder!\n");
 #endif
-            MDNS.end();
-            timers.start(TIMER_WIFI, MDNSCONNECTDELAY, false);
-          } else {
+        MDNS.end();
+        xTimerChangePeriod(timer, pdMS_TO_TICKS(MDNSCONNECTDELAY), portMAX_DELAY);
+      } else {
 #ifdef DEBUG_IOTWIFI
-            Serial.print("Wifi: mDNS responder started\n");
-            Serial.print("Wifi: Hostname: http://" + hostname + ".local\n");
+        Serial.print("Wifi: mDNS responder started\n");
+        Serial.print("Wifi: Hostname: http://" + hostname + ".local\n");
 #endif
-            // Add service to MDNS-SD
-            MDNS.addService("http", "tcp", WEB_PORT); 
-          }
-        }
+        // Add service to MDNS-SD
+        MDNS.addService("http", "tcp", WEB_PORT); 
       }
-    } else if (status == WL_CONNECTED) {
-      MDNS.end();
     }
     status = s;
   }
@@ -172,7 +181,7 @@ bool cIOTWifi::compSsidPass(String password) {
 
 void cIOTWifi::connectWifi(bool force) {
   String password;
-  timers.start(TIMER_WIFI, CONNECTIONDELAY, false);
+  xTimerChangePeriod(timer, pdMS_TO_TICKS(CONNECTIONDELAY), portMAX_DELAY);
   if (AccessPoint) {
     WiFi.softAPdisconnect(true);
   }
@@ -193,6 +202,16 @@ void cIOTWifi::connectWifi(bool force) {
   } else {
     WiFi.begin();
   } 
+}
+
+void cIOTWifi::timerCallback(TimerHandle_t xTimer) {
+  portENTER_CRITICAL(&mux);
+  if (pdTICKS_TO_MS(xTimerGetPeriod(xTimer)) >= CONNECTIONDELAY) {
+    timerStatus = timeout;
+  } else {
+    timerStatus = mdns;
+  }
+  portEXIT_CRITICAL(&mux);
 }
 
 cIOTWifi iotWifi;

@@ -75,6 +75,7 @@ private:
   bool timer_enabled;
 #if defined(ARDUINO_ARCH_ESP32)
   hw_timer_t *timer;
+  unsigned long utimex;
 #endif
 };
 

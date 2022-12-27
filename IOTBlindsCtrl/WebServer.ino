@@ -1,6 +1,6 @@
-/* 
+/*
  * IOTBlindCtrl - WebServer
- * Webserver for accessing IOTBlindsCtrl and change settings 
+ * Webserver for accessing IOTBlindsCtrl and change settings
  * Hardware: Lolin S2 Mini
  * Version 0.80
  * 14-5-2021
@@ -43,6 +43,7 @@ void cWebServer::init() {
   server.on("/wifiupdate", handleWifiUpdate);
   server.on("/wifisave", handleWifiSave);
   server.on("/wifimiscsave", handleWifiMiscSave);
+  server.on("/wifiupdateota", HTTP_POST, handleWifiUpdateOTAResult, handleWifiUpdateOTA);
   server.on("/blindload", handleBlindLoad);
   server.on("/blindsave", handleBlindSave);
   server.on("/mqttload", handleMqttLoad);
@@ -57,7 +58,7 @@ void cWebServer::init() {
   Serial.print("Webserver: HTTP server started\n");
 #endif
 }
-    
+
 void cWebServer::handle() {
   server.handleClient();
 }
@@ -91,7 +92,7 @@ void cWebServer::handleRoot() {
   }
   String Page;
   sendHeader();
-  Page = webStart; 
+  Page = webStart;
   Page += webStyle;
   Page += webBody;
   Page += webHead;
@@ -119,7 +120,7 @@ boolean cWebServer::captivePortal() {
 void cWebServer::handleWifi() {
   String Page;
   sendHeader();
-  Page = webStart; 
+  Page = webStart;
   Page += webStyle;
   Page += webBody;
   Page += webHead;
@@ -133,7 +134,7 @@ void cWebServer::handleWifi() {
 void cWebServer::handleBlind() {
   sendHeader();
   String Page;
-  Page = webStart; 
+  Page = webStart;
   Page += webStyle;
   Page += webBody;
   Page += webHead;
@@ -147,41 +148,41 @@ void cWebServer::handleBlind() {
 void cWebServer::handleMqtt() {
   sendHeader();
   String Page;
-  Page = webStart; 
+  Page = webStart;
   Page += webStyle;
   Page += webBody;
   Page += webHead;
   Page += webMqtt;
   Page += webEnd;
   menuIndex = "4";
-  server.send(200, "text/html", Page); 
-  server.client().stop(); // Stop is needed because we sent no content length   
+  server.send(200, "text/html", Page);
+  server.client().stop(); // Stop is needed because we sent no content length
 }
 
 void cWebServer::handleLog() {
   sendHeader();
   String Page;
-  Page = webStart; 
+  Page = webStart;
   Page += webStyle;
   Page += webBody;
   Page += webHead;
   Page += webLog;
   Page += webEnd;
   menuIndex = "5";
-  server.send(200, "text/html", Page);    
+  server.send(200, "text/html", Page);
 }
 
 void cWebServer::handleReboot() {
   sendHeader();
   String Page;
-  Page = webStart; 
+  Page = webStart;
   Page += webStyle;
   Page += webBody;
   Page += webHead;
   Page += webReboot;
   Page += webEnd;
   menuIndex = "6";
-  server.send(200, "text/html", Page);    
+  server.send(200, "text/html", Page);
 }
 
 void cWebServer::handleNotFound() {
@@ -256,10 +257,10 @@ String cWebServer::getTimeStatus() {
 void cWebServer::handleHomeUpdate() {
   JSON jString;
   jString.AddItem("time", Clock.getFormattedDate() + " " + Clock.getFormattedTime());
-  jString.AddItem("timestatus", getTimeStatus());  
+  jString.AddItem("timestatus", getTimeStatus());
   jString.AddItem("mqttstatus", getMqttStatus((boolean)settings.getByte(settings.UseMqtt)));
   jString.AddItem("temperature", temp.getRealTimeTemp());
-  jString.AddItem("lightsensor", lightSensor.Raw);
+  jString.AddItem("lightsensor", lightSensor.getRaw());
   jString.AddItem("blindstatus", getBlindStatus());
   jString.AddItem("position", blind.getPosition());
   server.send(200, "text/plane", jString.GetJson());
@@ -292,6 +293,14 @@ void cWebServer::handleWifiLoad() {
   jString.AddItem("ntpserver", settings.getString(settings.NtpServer));
   jString.AddItem("timezone", (signed char)settings.getByte(settings.NtpZone));
   jString.AddItem("usedst", (boolean)settings.getByte(settings.UseDST));
+  jString.AddItem("appversion", String(APPVERSION));
+  jString.AddItem("reboottime", Clock.getFormattedBootDate() + " " + Clock.getFormattedBootTime());
+  jString.AddItem("rebootreason0", chiller.getResetReason(0));
+  jString.AddItem("rebootreason1", chiller.getResetReason(1));
+  jString.AddItem("heapmem", chiller.getHeapMem());
+  jString.AddItem("progmem", chiller.getProgramMem());
+  jString.AddItem("sdkversion", chiller.getVersion());
+  jString.AddItem("cpufreq", chiller.getCPUFreq());
   server.send(200, "text/plane", jString.GetJson());
 }
 
@@ -347,6 +356,46 @@ void cWebServer::handleWifiMiscSave() {
   server.sendHeader("Location", "wifi", true);
   server.send(302, "text/plain", "");    // Empty content inhibits Content-length header so we have to close the socket ourselves.
   server.client().stop(); // Stop is needed because we sent no content length
+}
+
+void cWebServer::handleWifiUpdateOTA() {
+  HTTPUpload& upload = server.upload();
+  if (upload.status == UPLOAD_FILE_START) {
+#ifdef DEBUG_WEBSERVER
+    Serial.printf("Update: %s\n", upload.filename.c_str());
+#endif
+    if (!Update.begin(UPDATE_SIZE_UNKNOWN)) { //start with max available size
+#ifdef DEBUG_WEBSERVER
+      Update.printError(Serial);
+#endif
+    }
+  } else if (upload.status == UPLOAD_FILE_WRITE) {
+    /* flashing firmware to ESP*/
+    if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
+#ifdef DEBUG_WEBSERVER
+      Update.printError(Serial);
+#endif
+    }
+  } else if (upload.status == UPLOAD_FILE_END) {
+    if (Update.end(true)) { //true to set the size to the current progress
+#ifdef DEBUG_WEBSERVER
+      Serial.printf("Update Success: %u\nLet's reboot\n", upload.totalSize);
+#endif
+    } else {
+#ifdef DEBUG_WEBSERVER
+      Update.printError(Serial);
+#endif
+    }
+  }
+}
+
+void cWebServer::handleWifiUpdateOTAResult() {
+  if (Update.hasError()) {
+    server.send(400, "text/plain", Update.errorString());
+    server.client().stop();
+  } else {
+    handleDoReboot();
+  }
 }
 
 void cWebServer::handleBlindLoad() {
@@ -541,7 +590,7 @@ void cWebServer::handleLogLoad() {
 void cWebServer::handleLogUpdate() {
   JSON jString;
   String datastr[1];
-  datastr[0] = Clock.getFormattedTime() + ", " + String(lightSensor.Raw) + " (" + String(lightSensor.OutSunny) + ", " + String(lightSensor.OutTwilight) + "), " + String(temp.getRealTimeTemp()) + ", " + String(blind.getPosition()) + ", " + getBlindStatus();
+  datastr[0] = Clock.getFormattedTime() + ", " + String(lightSensor.getRaw()) + " (" + String(lightSensor.OutSunny) + ", " + String(lightSensor.OutTwilight) + "), " + String(temp.getRealTimeTemp()) + ", " + String(blind.getPosition()) + ", " + getBlindStatus();
   jString.AddArray("", datastr, 1);
   server.send(200, "text/plane", jString.GetJson());
 }
@@ -553,7 +602,7 @@ void cWebServer::handleDoReboot() {
   sendHeader();
   String Page;
   Page = String(webRebooting);
-  server.send(200, "text/html", Page);    
+  server.send(200, "text/html", Page);
   server.client().stop(); // Stop is needed because we sent no content length
   ESP.restart();
 }
