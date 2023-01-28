@@ -10,12 +10,6 @@
 #ifndef Temperature_h
 #define Temperature_h
 
-#ifdef DEBUG_SERIAL
-//#define TEMP_TEST
-//#define DEBUG_TEMP
-//#define DEBUG_TEMPA
-#endif
-
 #ifndef DS18S20_PIN
 #define DS18S20_PIN        -1
 #endif

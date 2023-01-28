@@ -7,12 +7,6 @@
  */
 
 #include "mqtt.h"
-#include "IOTWifi.h"
-#include "Settings.h"
-#include "Commands.h"
-#include "Blind.h"
-#include "LightSensor.h"
-#include "Temperature.h"
 
 portMUX_TYPE cMqtt::mux = portMUX_INITIALIZER_UNLOCKED;
 boolean cMqtt::doPub = false;
@@ -34,21 +28,17 @@ cMqtt::cMqtt() { // constructor
 void cMqtt::init() {
   IPAddress ip;  
   if (ip.fromString(settings.getString(settings.brokerAddress))) {
-#ifdef DEBUG_MQTT
-    Serial.print("DEBUG: mqtt server set from IP\n");
-#endif
+    logger.printf(LOG_MQTT, "mqtt server set from IP");
     client.setServer(ip, settings.getShort(settings.mqttPort));
   } else {
-#ifdef DEBUG_MQTT
-    Serial.print("DEBUG: mqtt server set from hostname\n");
-#endif
+    logger.printf(LOG_MQTT, "mqtt server set from hostname");
     client.setServer(settings.getString(settings.brokerAddress).c_str(), settings.getShort(settings.mqttPort));
   }
   client.setCallback(callback);
   clientId = "IOTBlindsCtrl_" + iotWifi.MacPart(6);
-  conTimer = xTimerCreateStatic("", pdMS_TO_TICKS(MQTT_RECONNECT_TIME), pdFALSE, (void *)CONNECT_TIMER, timerCallback, &conTimerBuffer);
+  conTimer = xTimerCreateStatic("mqttcon", pdMS_TO_TICKS(MQTT_RECONNECT_TIME), pdFALSE, (void *)CONNECT_TIMER, timerCallback, &conTimerBuffer);
   connecting = false;
-  pubTimer = xTimerCreateStatic("", pdMS_TO_TICKS(MQTT_PUBLISH_TIME), pdTRUE, (void *)PUBLISH_TIMER, timerCallback, &pubTimerBuffer);
+  pubTimer = xTimerCreateStatic("mqttpub", pdMS_TO_TICKS(MQTT_PUBLISH_TIME), pdTRUE, (void *)PUBLISH_TIMER, timerCallback, &pubTimerBuffer);
   xTimerStart(pubTimer, portMAX_DELAY);
 }
 
@@ -107,45 +97,46 @@ String cMqtt::buildTopic(String tag) {
 void cMqtt::callback(char* topic, byte* payload, unsigned int length) {
   String tag = "";
   String payld = "";
-#ifdef DEBUG_MQTT
-  Serial.print("DEBUG: Message received [");
-  Serial.print(topic);
-  Serial.print("] ");
-  for (int i = 0; i < length; i++) {
-    Serial.print((char)payload[i]);
-  }
-  Serial.println();
-#endif
 
   tag = getTag(String(topic));
   payld = bp2string(payload, length);
+  logger.printf(LOG_MQTT, "Message received [" + String(topic) + "] " + String(payld));
 
   if (tag == pos_updown) {
     if (getBoolean2(payld)) {
-      cmdQueue.addCommand(CMD_DOWN);
+      logger.printf(LOG_MQTTCMD, "Command DOWN");
+      stateMachine.setCmd(CMD_DOWN);
     } else {
-      cmdQueue.addCommand(CMD_UP);
+      logger.printf(LOG_MQTTCMD, "Command UP");
+      stateMachine.setCmd(CMD_UP);
     }
   } else if (tag == pos_up) {
     if (getBoolean(payld)) {
-      cmdQueue.addCommand(CMD_UP);
+      logger.printf(LOG_MQTTCMD, "Command UP");      
+      stateMachine.setCmd(CMD_UP);
     } else {
-      cmdQueue.addCommand(CMD_STOP);
+      logger.printf(LOG_MQTTCMD, "Command STOP");
+      stateMachine.setCmd(CMD_STOP);
     }
   } else if (tag == pos_down) {
     if (getBoolean(payld)) {
-      cmdQueue.addCommand(CMD_DOWN);
+      logger.printf(LOG_MQTTCMD, "Command DOWN");
+      stateMachine.setCmd(CMD_DOWN);
     } else {
-      cmdQueue.addCommand(CMD_STOP);
+      logger.printf(LOG_MQTTCMD, "Command STOP");
+      stateMachine.setCmd(CMD_STOP);
     }
   } else if (tag == pos_shade) {
     if (getBoolean(payld)) {
-      cmdQueue.addCommand(CMD_SHADE);
+      logger.printf(LOG_MQTTCMD, "Command SHADE");
+      stateMachine.setCmd(CMD_SHADE);
     } else {
-      cmdQueue.addCommand(CMD_STOP);
+      logger.printf(LOG_MQTTCMD, "Command STOP");
+      stateMachine.setCmd(CMD_STOP);
     }
   } else if (tag == pos_pos) {
-    cmdQueue.addCommand(getPercentage(payld));
+    logger.printf(LOG_MQTTCMD, "Command POS");
+    stateMachine.setCmd(getPercentage(payld));
   }
 }
 
@@ -162,26 +153,14 @@ void cMqtt::sendStatus() { // publish on connected or (every ten minutes or) whe
           client.publish(buildTopic(PublishTopics[i].tag).c_str(), val.c_str(), (boolean)settings.getByte(settings.mqttRetain));
           publishMem[i].value = val;
           publishMem[i].updateCounter = 0;
-#ifdef DEBUG_MQTT
-          Serial.print("DEBUG: Message published [");
-          Serial.print(buildTopic(PublishTopics[i].tag));
-          Serial.print("] ");
-          Serial.print(val);
-          Serial.println();
-#endif
+          logger.printf(LOG_MQTT, "Message published [" + String(buildTopic(PublishTopics[i].tag)) + "] " + String(val));
         }
       } else {
         if ((publishMem[i].updateCounter >= 5) && (val != publishMem[i].value)) {
           client.publish(buildTopic(PublishTopics[i].tag).c_str(), val.c_str(), (boolean)settings.getByte(settings.mqttRetain));
           publishMem[i].value = val;
           publishMem[i].updateCounter = 0;
-#ifdef DEBUG_MQTT
-          Serial.print("DEBUG: Message published [");
-          Serial.print(buildTopic(PublishTopics[i].tag));
-          Serial.print("] ");
-          Serial.print(val);
-          Serial.println();
-#endif
+          logger.printf(LOG_MQTT, "Message published [" + String(buildTopic(PublishTopics[i].tag)) + "] " + String(val));
         }
       }
       publishMem[i].updateCounter++;
@@ -200,11 +179,9 @@ boolean cMqtt::reconnect() {
   }  
   
   if (connAttempt) {
-#ifdef DEBUG_MQTT
     if (!connected) {
-      Serial.print("MQTT: connected\n");
+      logger.printf(LOG_MQTT, "MQTT connected");
     }
-#endif
     int publishLen = (sizeof(PublishTopics) / sizeof(topics));
     int subscribeLen = (sizeof(SubscribeTopics) / sizeof(topics));
     for (int i = 0; i < subscribeLen; i++) {
@@ -215,20 +192,12 @@ boolean cMqtt::reconnect() {
       client.publish(buildTopic(PublishTopics[i].tag).c_str(), val.c_str(), (boolean)settings.getByte(settings.mqttRetain));
       publishMem[i].value = val;
       publishMem[i].updateCounter = 1;
-#ifdef DEBUG_MQTT
-      Serial.print("DEBUG: Message published [");
-      Serial.print(buildTopic(PublishTopics[i].tag));
-      Serial.print("] ");
-      Serial.print(val);
-      Serial.println();
-#endif
+      logger.printf(LOG_MQTT, "Message published [" + String(buildTopic(PublishTopics[i].tag)) + "] " + String(val));
     }
   } else {
-#ifdef DEBUG_MQTT
     if (connected) {
-      Serial.print("MQTT: connection failed, rc=" + String(client.state()) + " try again in 5 seconds\n");
+      logger.printf(LOG_MQTT, "MQTT connection failed, rc=" + String(client.state()) + " try again in 5 seconds");
     }
-#endif
   }
   connected = client.connected();
   return connected;

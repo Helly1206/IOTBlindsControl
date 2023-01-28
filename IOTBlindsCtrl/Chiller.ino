@@ -14,6 +14,7 @@ CChiller::CChiller() { // constructor
   hasSleepMode = false;
   timeStamp = 0;
   uTaskDuration = 0;
+  ctr = 0;
 }
 
 void CChiller::init() {
@@ -34,16 +35,13 @@ void CChiller::handle() {
       vTaskDelayUntil(&xLastWakeTime, xDuration/portTICK_PERIOD_MS);
     }
   }
-  timeStamp = micros();
-
-#ifdef DEBUG_CHILLER
-  if (millis() - temptime > 1000) {
-    Serial.print("Idle:");
-    Serial.print(getIdlePercentage());
-    Serial.println("%");
-    temptime = millis();
+  if (ctr > 1000/xDuration) {
+    logger.printf(LOG_CHILLER, "Idle:" + String(getIdlePercentage()) + "%");
+    ctr = 0;
+  } else {
+    ctr++;
   }
-#endif
+  timeStamp = micros();
 }
 
 void CChiller::setMode(CChiller::chillmode mode) {
@@ -133,17 +131,13 @@ String CChiller::getCPUFreq() {
 void CChiller::sleepMode(boolean on) {
   if (on) {
     if (!hasSleepMode) {
-#ifdef DEBUG_CHILLER
-      Serial.println("Zzz...");
-#endif
+      logger.printf(LOG_CHILLER, "Zzz...");
       WiFi.setSleep(SLEEP_TYPE);
       hasSleepMode = true;
     }
   } else {
     if (hasSleepMode) {
-#ifdef DEBUG_CHILLER
-      Serial.println("Wakey");
-#endif
+      logger.printf(LOG_CHILLER, "Wakey");
       WiFi.setSleep(WIFI_PS_NONE);
       hasSleepMode = false;
     }

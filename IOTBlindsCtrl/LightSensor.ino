@@ -15,14 +15,11 @@
  */
  
 #include "LightSensor.h"
-#include "Settings.h"
 
-CLightSensor::rawReadout CLightSensor::raw;
+CLightSensor::rawReadout CLightSensor::raw = {0, false};
 portMUX_TYPE CLightSensor::mux = portMUX_INITIALIZER_UNLOCKED;
 
 CLightSensor::CLightSensor() { // constructor
-  raw.value = 0;
-  raw.sample = false;
   OutSunny = 0;
   OutTwilight = 0;
   Twilight = false;
@@ -36,7 +33,7 @@ CLightSensor::CLightSensor() { // constructor
 }
 
 void CLightSensor::init(void) {
-  timer = xTimerCreateStatic("", pdMS_TO_TICKS(settings.getShort(settings.SampleTime)), pdTRUE, (void *)0, timerCallback, &timerBuffer);
+  timer = xTimerCreateStatic("sensor", pdMS_TO_TICKS(settings.getShort(settings.SampleTime)), pdTRUE, (void *)0, timerCallback, &timerBuffer);
   xTimerStart(timer, portMAX_DELAY);
   reset();
 }

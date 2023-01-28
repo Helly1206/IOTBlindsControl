@@ -13,10 +13,6 @@
 #include <WebServer.h>
 #include <Update.h>
 
-#ifdef DEBUG_SERIAL
-#define DEBUG_WEBSERVER
-#endif
-
 #ifndef APPVERSION
 #define APPVERSION       "N.A."
 #endif
@@ -55,6 +51,10 @@ class cWebServer {
     static void handleWifiMiscSave();
     static void handleWifiUpdateOTA();
     static void handleWifiUpdateOTAResult();
+    static void handleWifiLogEnable();
+    static void handleWifiLogLevel();
+    static void handleWifiLogSave();
+    static void handleWifiLogTexts();
     static void handleBlindLoad();
     static void handleBlindSave();
     static String getMqttStatus(boolean UseMqtt);

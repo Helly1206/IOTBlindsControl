@@ -13,11 +13,6 @@
 #include <EEPROM.h>
 #include "mbedtls/aes.h"
 
-#ifdef DEBUG_SERIAL
-//#define DEBUG_SETTINGS
-#endif
-//#define FORCE_DEFAULTS
-
 #define EEPROM_SIZE   512
 #define EEPROM_START  0
 #define STANDARD_SIZE 32
@@ -103,6 +98,9 @@ class cSettings {
     Item *NtpServer;           // String 32
     Item *NtpZone;             // [byte] [-12..12]
     Item *UseDST;              // [bool]
+    Item *UdpPort;             // [0..65535]
+    Item *UdpEnabled;          // [bool]
+    Item *UpdDebugLevel;       // [0..65535]
 
     // MQTT parameters
     Item *brokerAddress;       // String 32

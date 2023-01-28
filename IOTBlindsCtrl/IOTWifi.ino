@@ -8,8 +8,6 @@
  */
 
 #include "IOTWifi.h"
-#include "Settings.h"
-#include "LEDs.h"
 
 cIOTWifi::timerstatus cIOTWifi::timerStatus = none;
 portMUX_TYPE cIOTWifi::mux = portMUX_INITIALIZER_UNLOCKED;
@@ -27,20 +25,15 @@ void cIOTWifi::init() {
   pinMode(FLASH_PIN, INPUT_PULLUP);
   APssid = String(APSSID)+ "_" + MacPart(6);
   settings.get(settings.hostname, hostname);
-  timer = xTimerCreateStatic("", pdMS_TO_TICKS(CONNECTIONDELAY), pdFALSE, (void *)0, timerCallback, &timerBuffer);
+  timer = xTimerCreateStatic("wifi", pdMS_TO_TICKS(CONNECTIONDELAY), pdFALSE, (void *)0, timerCallback, &timerBuffer);
   connectWifi(false);
   LED.WifiNC();
-  
-#ifdef DEBUG_IOTWIFI
-  Serial.printf("DEBUG: settings size: %d bytes\n",settings.memsize);
-  Serial.print("Wifi: Press Flash or up button to enter access point mode, while LED is flashing\n");
-#endif
+  logger.printf(LOG_WIFI, "Settings size: " + String(settings.memsize) + " bytes");
+  logger.printf(LOG_WIFI, "Press Flash or up button to enter access point mode, while LED is flashing");
 }
 
 void cIOTWifi::connect() {
-#ifdef DEBUG_IOTWIFI
-  Serial.print("Wifi: Connecting wifi\n");
-#endif
+  logger.printf(LOG_WIFI, "Connecting wifi");
   connectWifi(true);
 }
 
@@ -52,41 +45,37 @@ void cIOTWifi::handle() {
     unsigned int s = WiFi.status();
     if (status != s) { // WLAN status change
       if (s == WL_CONNECTED) {
-#ifdef DEBUG_IOTWIFI
-          Serial.print("Wifi: Connection successfully established\n");
-          Serial.print("Wifi: Connected to SSID: " + ssid + "\n");
-          Serial.print("Wifi: IP address: ");
-          Serial.print(WiFi.localIP());
-          Serial.print("\n");
-#endif
-          xTimerChangePeriod(timer, pdMS_TO_TICKS(MDNSCONNECTDELAY), portMAX_DELAY);
-          portENTER_CRITICAL(&mux);
-          timerStatus = none;
-          portEXIT_CRITICAL(&mux);
-          LED.WifiC();
-          connected = true;
+        logger.connect();
+        logger.printf("Wifi connection successfully established");
+        logger.printf("Wifi connected to SSID: " + String(ssid));
+        logger.printf("Wifi IP address: "+ String(WiFi.localIP().toString()));
+        xTimerChangePeriod(timer, pdMS_TO_TICKS(MDNSCONNECTDELAY), portMAX_DELAY);
+        portENTER_CRITICAL(&mux);
+        timerStatus = none;
+        portEXIT_CRITICAL(&mux);
+        LED.WifiC();
+        connected = true;
       } else {
-#ifdef DEBUG_IOTWIFI
         switch (s) {
           case WL_NO_SSID_AVAIL:
-            Serial.print("Wifi: Configured SSID cannot be reached\n");       
+            logger.printf(LOG_WIFI, "Configured SSID cannot be reached");       
             break;
           case WL_CONNECT_FAILED:
-            Serial.print("Wifi: Connection failed\n");
+            logger.printf(LOG_WIFI, "Connection failed");
             break;
           case WL_CONNECTION_LOST:
-            Serial.print("Wifi: Connection lost\n");
+            logger.printf(LOG_WIFI, "WConnection lost");
             break;
           case WL_DISCONNECTED:
-            Serial.print("Wifi: Disconnected\n");
+            logger.printf(LOG_WIFI, "Disconnected");
             break;  
           default:
-            Serial.print("Wifi: unexpected Wifi status\n");
+            logger.printf(LOG_WIFI, "Unexpected Wifi status");
             break; 
         }
-#endif
         LED.WifiNC();
         connected = false;
+        logger.disconnect();
         if (status == WL_CONNECTED) {
           MDNS.end();
         }
@@ -94,9 +83,7 @@ void cIOTWifi::handle() {
     }
     if (s != WL_CONNECTED) {
       if ((!digitalRead(FLASH_PIN)) || (buttons.initButtonPressed()) || (timerStatus == timeout)) { // enter access point mode
-#ifdef DEBUG_IOTWIFI
-        Serial.print("Wifi: Setting up as access point\n");
-#endif            
+        logger.printf(LOG_WIFI, "Setting up as access point");           
         portENTER_CRITICAL(&mux);
         timerStatus = none;
         portEXIT_CRITICAL(&mux);
@@ -109,16 +96,12 @@ void cIOTWifi::handle() {
       portEXIT_CRITICAL(&mux);
       // Setup MDNS responder
       if (!MDNS.begin(hostname.c_str())) {
-#ifdef DEBUG_IOTWIFI
-        Serial.print("Wifi: Error setting up MDNS responder!\n");
-#endif
+        logger.printf("Wifi error setting up MDNS responder!");
         MDNS.end();
         xTimerChangePeriod(timer, pdMS_TO_TICKS(MDNSCONNECTDELAY), portMAX_DELAY);
       } else {
-#ifdef DEBUG_IOTWIFI
-        Serial.print("Wifi: mDNS responder started\n");
-        Serial.print("Wifi: Hostname: http://" + hostname + ".local\n");
-#endif
+        logger.printf("Wifi mDNS responder started");
+        logger.printf("Wifi hostname: http://" + String(hostname) + ".local");
         // Add service to MDNS-SD
         MDNS.addService("http", "tcp", WEB_PORT); 
       }
@@ -148,19 +131,13 @@ boolean cIOTWifi::wakingUp() {
 
 void cIOTWifi::connectAccessPoint() {
   AccessPoint = true;
-#ifdef DEBUG_IOTWIFI
-  Serial.print("Wifi: Connecting as access point...\n");
-#endif
+  logger.printf(LOG_WIFI, "Connecting as access point...");
   WiFi.persistent(false);
   WiFi.disconnect();
   WiFi.softAPConfig(*apIP, *apIP, *netMsk);
   WiFi.softAP(APssid.c_str(), APPSK);
   delay(500); // Without delay I've seen the IP address blank
-#ifdef DEBUG_IOTWIFI
-  Serial.print("Wifi: Access point IP address: ");
-  Serial.print(WiFi.softAPIP());
-  Serial.print("\n");
-#endif
+  logger.printf("Wifi access point IP address: " + String(WiFi.softAPIP().toString()));
 
   /* Setup the DNS server redirecting all the domains to the apIP */
   dnsServer->setErrorReplyCode(DNSReplyCode::NoError);
@@ -193,9 +170,7 @@ void cIOTWifi::connectWifi(bool force) {
   WiFi.persistent(true);
   WiFi.setAutoConnect(true);
   WiFi.setAutoReconnect(true);
-#ifdef DEBUG_IOTWIFI
-  Serial.print("Wifi: Connecting as wifi client...\n");
-#endif
+  logger.printf("Connecting as wifi client...");
   compSsidPass(password);
   if ((force) || (!compSsidPass(password))) {
     WiFi.begin(ssid.c_str(), password.c_str());  

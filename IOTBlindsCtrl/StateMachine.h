@@ -10,6 +10,13 @@
 #ifndef StateMachine_h
 #define StateMachine_h
 
+#define CMD_DOWN       0
+#define CMD_UP         100
+#define CMD_SHADE      110
+#define CMD_STOP       120
+#define CMD_MANUAL     230    
+#define CMD_NONE       255
+
 class CStateMachine {
 public:
   enum machinestate {ctrl, sunny, twilight, darkened, moving};
@@ -17,8 +24,11 @@ public:
   void init(void);
   void handle(void);
   machinestate getState();
-  boolean ManualOnly;
+  boolean isManualOnly();
+  byte setCmd(byte command);
+  
 private:
+  byte getCmd(void);
   byte CheckInput(void);
   boolean CtrlMove(byte Command);
   boolean CheckSunny(void);
@@ -34,6 +44,9 @@ private:
   boolean TwilightInterrupted;
   boolean HotDayInterrupted;
   unsigned short HotDayTimeStart;
+  byte cmd;
+  boolean ManualOnly;
+  static portMUX_TYPE cmdMux;
 };
 
 extern CStateMachine stateMachine;

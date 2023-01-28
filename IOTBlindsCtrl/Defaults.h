@@ -16,8 +16,8 @@
 #define DEF_SUNNYIGAIN          55
 #define DEF_SAMPLETIME          1000
 #define DEF_OUTPUTTHRESHOLD     32768
-#define DEF_FIXEDOPEN           510
-#define DEF_FIXEDCLOSE          1350
+#define DEF_FIXEDOPEN           525
+#define DEF_FIXEDCLOSE          1335
 #define DEF_TWILIGHTTHRESHOLD   1023
 #define DEF_TWILIGHTHYSTERISES  25
 #define DEF_SUNNYTHRESHOLD      27
@@ -37,6 +37,9 @@
 #define DEF_NTPSERVER           "pool.ntp.org"
 #define DEF_NTPZONE             1
 #define DEF_USEDST              true
+#define DEF_LOGPORT             6309
+#define DEF_LOGENABLE           true
+#define DEF_LOGDEBUG            0
 
 #define DEF_BROKERADDRESS       "mqtt.broker.com"
 #define DEF_MQTTPORT            1883

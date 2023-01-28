@@ -8,10 +8,6 @@
  */
 
 #include "Clock.h"
-#include "Settings.h"
-#include "Commands.h"
-#include "IOTWifi.h"
-
 
 cClock::cClock() { // constructor
   port = NTP_DEFAULT_LOCAL_PORT;
@@ -155,9 +151,7 @@ boolean cClock::update() {
 }
 
 boolean cClock::forceUpdate() {
-  #ifdef DEBUG_NTPClient
-    Serial.println("Update from NTP Server");
-  #endif
+  logger.printf(LOG_NTP, "Update from NTP Server");
 
   // flush any existing packets
   while(ntpUDP->parsePacket() != 0) {
@@ -269,9 +263,12 @@ void cClock::handleFixedTimes() {
     if ((switchTime > 0) && (timeSet)) {
       if (switchTime > mod) {
         fixedOpened = false;
-      } else if ((switchTime <= mod) && (!fixedOpened) && (!commandToday)) {
+      } else if ((switchTime <= mod) && (!fixedOpened)) {
         fixedOpened = true;
-        cmdQueue.addCommand(CMD_UP);
+        if (!commandToday) {
+          logger.printf("Blind fixed up");
+          stateMachine.setCmd(CMD_UP);
+        }
       }
     }
     switchTime = settings.getShort(settings.FixedClose);
@@ -280,7 +277,10 @@ void cClock::handleFixedTimes() {
         fixedClosed = false;
       } else if ((switchTime <= mod) && (!fixedClosed)) {
         fixedClosed = true;
-        cmdQueue.addCommand(CMD_DOWN);
+        if (blind.getPosition() > BLIND_POSDOWN) {
+          logger.printf("Blind fixed down");
+          stateMachine.setCmd(CMD_DOWN);
+        }
       }
     }
   }

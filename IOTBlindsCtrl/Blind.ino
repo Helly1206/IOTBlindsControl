@@ -19,9 +19,7 @@
  // up = 100 %
  
 #include "Blind.h"
-#include "Settings.h"
 #include "HWtimer.h"
-#include "LEDs.h"
 
 volatile CBlind::blindstate CBlind::blindState = stopped;
 portMUX_TYPE CBlind::timerMux = portMUX_INITIALIZER_UNLOCKED;
@@ -54,12 +52,8 @@ void CBlind::handle() {
       if ((blindState == stopping) || (blindState == stopped)) {
         blindDir = none;
         LED.Off();
-#ifdef DEBUG_BLIND
-        Serial.println("DEBUG: BlindDir None");
-#endif
-#ifdef DEBUG_BLIND_TIMING
-        Serial.println("DEBUG: stoppedTime " + String(stoppedTime));
-#endif
+        logger.printf(LOG_BLIND, "BlindDir None");
+        logger.printf(LOG_BLIND_TIMING, "stoppedTime " + String(stoppedTime));
       }
     } else {
       CalcPos(false);
@@ -92,9 +86,7 @@ CBlind::blinddir CBlind::moveDir(blinddir Dir) {
     }	
   }
 
-#ifdef DEBUG_BLIND
-  Serial.print("DEBUG: blind::moveDir("+ String(Dir) +") = " + String(retdir) +"\n");
-#endif
+  logger.printf(LOG_BLIND, "moveDir("+ String(Dir) + ") = " + String(retdir));
 
   return (retdir);
 }
@@ -105,18 +97,14 @@ CBlind::blinddir CBlind::movePos(byte Pos) {
       blindDir = up;
       Startpos = Position;
       Setpoint = Pos;
-#ifdef DEBUG_BLIND
-      Serial.println("DEBUG: Blind Up()");
-#endif
+      logger.printf(LOG_BLIND, "Blind Up");
       LED.Up();
       StartMove();
     } else if (Position>Pos) { // move down to pos  
       blindDir = down;
       Startpos = Position;
       Setpoint = Pos;
-#ifdef DEBUG_BLIND
-      Serial.println("DEBUG: Blind Down()");
-#endif
+      logger.printf(LOG_BLIND, "Blind Down");
       LED.Down();
       StartMove(); 
     } else {
@@ -125,15 +113,13 @@ CBlind::blinddir CBlind::movePos(byte Pos) {
     }
   }
 
-#ifdef DEBUG_BLIND
-  Serial.print("DEBUG: blind::movePos("+ String(Pos) +") = " + String(blindDir) +"\n");
-#endif
+  logger.printf(LOG_BLIND, "Blind movePos("+ String(Pos) + ") = " + String(blindDir));
   
   return (blindDir);
 }
 
 CBlind::blinddir CBlind::stop() {
-  if (blindState != stopped) {
+  if (blindState == moving) { // only execute stop while moving
     portENTER_CRITICAL(&timerMux);
     stoppedTime = hwtimer.getuTime();
     digitalWrite(BLINDONOFF_PIN, LOW);
@@ -142,9 +128,7 @@ CBlind::blinddir CBlind::stop() {
     portEXIT_CRITICAL(&timerMux);
   }
 
-#ifdef DEBUG_BLIND
-  Serial.print("DEBUG: blind::stop()\n");
-#endif
+  logger.printf(LOG_BLIND, "Blind stop");
   
   return (none);
 }
@@ -201,10 +185,8 @@ void CBlind::StartMove() {
   hwtimer.trigger(RELAY_DELAY_TIME);
   blindState = starting;
   portEXIT_CRITICAL(&timerMux);
-#ifdef DEBUG_BLIND_TIMING
-  Serial.println("DEBUG: moveTime, " + String(moveTime));
-  Serial.println("DEBUG: syncTime, " + String(syncTime));
-#endif
+  logger.printf(LOG_BLIND_TIMING, "moveTime: " + String(moveTime));
+  logger.printf(LOG_BLIND_TIMING, "syncTime: " + String(syncTime));
 }
 
 void CBlind::CalcPos(boolean endPos) {
@@ -212,8 +194,10 @@ void CBlind::CalcPos(boolean endPos) {
   
   if (endPos) {
     Done = (byte)((GetLength()*stoppedTime)/moveTime);
+    logger.printf(LOG_BLIND_TIMING, "end %: " + String(Done));
   } else {
     Done = (byte)((GetLength()*hwtimer.getuTime())/moveTime);
+    logger.printf(LOG_BLIND_TIMING, "busy %: " + String(Done));
   }
   if (blindDir == up) {
     Position = Startpos + Done;
@@ -227,6 +211,8 @@ void CBlind::CalcPos(boolean endPos) {
       Position = Startpos - Done;
     }
   }
+  logger.printf(LOG_BLIND_TIMING, "position: " + String(Position));
+  logger.printf(LOG_BLIND_TIMING, "state: " + String(blindState));
 }
 
 void IRAM_ATTR CBlind::isr_timer() {

@@ -39,35 +39,28 @@ void cSettings::init() {
 #if 0
   int i;
   byte b;
+  String data = "";
   delay(2000);
   for (i=0;i<UseMqtt->start + UseMqtt->size; i++) {
     EEPROM.get(i, b);
-    Serial.print(b, HEX);
-    Serial.print("-");
+    data += String(b, HEX) + "-";
   }
+  logger.printf(data);
 #endif
 #ifdef FORCE_DEFAULTS
-#ifdef DEBUG_SETTINGS
-  Serial.print("Settings: Forcing default settings\n");
-#endif
+  logger.printf("Settings: Forcing default settings");
   resetSettings(TwilightIGain->start, (UseMqtt->start + UseMqtt->size) - TwilightIGain->start);
 #endif
   if (IsEmpty(TwilightIGain->start, (MotorEnabled->start + MotorEnabled->size) - TwilightIGain->start)) {
-#ifdef DEBUG_SETTINGS
-    Serial.print("Settings: No blind settings, loading default\n");
-#endif
+    logger.printf("Settings: No blind settings, loading default");
     defaultBlindParameters();
   }
-  if (IsEmpty(ssid->start, (UseDST->start + UseDST->size) - ssid->start)) {
-#ifdef DEBUG_SETTINGS
-    Serial.print("Settings: No wifi settings, loading default\n");
-#endif
+  if (IsEmpty(ssid->start, (UpdDebugLevel->start + UpdDebugLevel->size) - ssid->start)) {
+    logger.printf("Settings: No wifi settings, loading default");
     defaultWifiParameters();
   }
   if (IsEmpty(brokerAddress->start, (UseMqtt->start + UseMqtt->size) - brokerAddress->start)) {
-#ifdef DEBUG_SETTINGS
-    Serial.print("Settings: No mqtt settings, loading default\n");
-#endif
+    logger.printf("Settings: No mqtt settings, loading default");
     defaultMqttParameters();
   }
 #ifdef DO_ENCRYPT
@@ -326,6 +319,12 @@ void cSettings::initParameters() {
   startAddress += getSize(DT_BYTE);
   UseDST = new Item(DT_BYTE, startAddress);               // [bool]
   startAddress += getSize(DT_BYTE);
+  UdpPort = new Item(DT_SHORT, startAddress);             // [0..65535]
+  startAddress += getSize(DT_SHORT);
+  UdpEnabled = new Item(DT_BYTE, startAddress);           // [bool]
+  startAddress += getSize(DT_BYTE);
+  UpdDebugLevel = new Item(DT_SHORT, startAddress);       // [0..65535]
+  startAddress += getSize(DT_SHORT);
 
   // MQTT parameters
   brokerAddress = new Item(DT_STRING, startAddress, STANDARD_SIZE);
@@ -397,6 +396,7 @@ void cSettings::defaultBlindParameters() {
 }
 
 void cSettings::defaultWifiParameters() {
+    unsigned short val = 0;
     String sval = "";
     byte bval = true;
     set(ssid, sval = DEF_SSID);
@@ -405,6 +405,9 @@ void cSettings::defaultWifiParameters() {
     set(NtpServer, sval = DEF_NTPSERVER);
     set(NtpZone, bval = DEF_NTPZONE);
     set(UseDST, bval = DEF_USEDST);
+    set(UdpPort, val = DEF_LOGPORT);
+    set(UdpEnabled, bval = DEF_LOGENABLE);
+    set(UpdDebugLevel, val = DEF_LOGDEBUG);  
     update();
 }
 

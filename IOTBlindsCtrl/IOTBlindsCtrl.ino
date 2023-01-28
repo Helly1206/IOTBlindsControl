@@ -7,9 +7,7 @@
  * Copyright: Ivo Helwegen
  */
 
-//#define DEBUG_SERIAL
-
-#define APPVERSION       "v1.1.0"
+#define APPVERSION       "v1.2.0"
 
 #define BLINDUPDN_PIN  35 // GPIO35 // if blind then no chill or timer interrupts
 #define BLINDONOFF_PIN 33 // GPIO33
@@ -23,6 +21,7 @@
 #define SENSOR_PINA     3 // ADC1_CH2 // keep
 #define DS18S20_PIN    12 // GPIO12 // keep
 
+#include "udplogger.h"
 #include "IOTWifi.h"
 #include "WebServer.h"
 #include "Chiller.h"
@@ -37,10 +36,6 @@
 #include "mqtt.h"
 
 void setup() {
-#ifdef DEBUG_SERIAL
-  Serial.begin(115200);
-  delay(2000);
-#endif
   settings.init();
   LED.init();
   buttons.init();

@@ -379,6 +379,69 @@ const char webWifi[] = R"literal(
       <span>Reboot required</span>
     </div>
   </form>
+  <form method='POST' action='logsave'>
+    <div class="settings">
+      <b>UDP logging</b><span></span><span></span>
+      <label>Port</label>
+      <input type="number" min=1024 max=65535 step=1 onchange="checkLimits(this);" name="udpport"></input>
+      <span>Reboot required</span>
+      <label>Logging enabled</label>
+      <input type="checkbox" name="udpenable" onclick="logEnable();"></input>
+      <span></span>
+      <span>Debug logging</span><span></span><span></span>
+      <label>Debug log 1</label>
+      <input type="checkbox" name="debug[]" id="debug_0" onclick="updateLevels();"></input>
+      <span name="debugtext[]" id="debugtext_0"></span>
+      <label>Debug log 2</label>
+      <input type="checkbox" name="debug[]" id="debug_1" onclick="updateLevels();"></input>
+      <span name="debugtext[]" id="debugtext_1"></span>
+      <label>Debug log 3</label>
+      <input type="checkbox" name="debug[]" id="debug_2" onclick="updateLevels();"></input>
+      <span name="debugtext[]" id="debugtext_2"></span>
+      <label>Debug log 4</label>
+      <input type="checkbox" name="debug[]" id="debug_3" onclick="updateLevels();"></input>
+      <span name="debugtext[]" id="debugtext_3"></span>
+      <label>Debug log 5</label>
+      <input type="checkbox" name="debug[]" id="debug_4" onclick="updateLevels();"></input>
+      <span name="debugtext[]" id="debugtext_4"></span>
+      <label>Debug log 6</label>
+      <input type="checkbox" name="debug[]" id="debug_5" onclick="updateLevels();"></input>
+      <span name="debugtext[]" id="debugtext_5"></span>
+      <label>Debug log 7</label>
+      <input type="checkbox" name="debug[]" id="debug_6" onclick="updateLevels();"></input>
+      <span name="debugtext[]" id="debugtext_6"></span>
+      <label>Debug log 8</label>
+      <input type="checkbox" name="debug[]" id="debug_7" onclick="updateLevels();"></input>
+      <span name="debugtext[]" id="debugtext_7"></span>
+      <label>Debug log 9</label>
+      <input type="checkbox" name="debug[]" id="debug_8" onclick="updateLevels();"></input>
+      <span name="debugtext[]" id="debugtext_8"></span>
+      <label>Debug log 10</label>
+      <input type="checkbox" name="debug[]" id="debug_9" onclick="updateLevels();"></input>
+      <span name="debugtext[]" id="debugtext_9"></span>
+      <label>Debug log 11</label>
+      <input type="checkbox" name="debug[]" id="debug_10" onclick="updateLevels();"></input>
+      <span name="debugtext[]" id="debugtext_10"></span>
+      <label>Debug log 12</label>
+      <input type="checkbox" name="debug[]" id="debug_11" onclick="updateLevels();"></input>
+      <span name="debugtext[]" id="debugtext_11"></span>
+      <label>Debug log 13</label>
+      <input type="checkbox" name="debug[]" id="debug_12" onclick="updateLevels();"></input>
+      <span name="debugtext[]" id="debugtext_12"></span>
+      <label>Debug log 14</label>
+      <input type="checkbox" name="debug[]" id="debug_13" onclick="updateLevels();"></input>
+      <span name="debugtext[]" id="debugtext_13"></span>
+      <label>Debug log 15</label>
+      <input type="checkbox" name="debug[]" id="debug_14" onclick="updateLevels();"></input>
+      <span name="debugtext[]" id="debugtext_14"></span>
+      <label>Debug log 16</label>
+      <input type="checkbox" name="debug[]" id="debug_15" onclick="updateLevels();"></input>
+      <span name="debugtext[]" id="debugtext_15"></span>
+      <span></span>
+      <input type='submit' value='Store settings'/>
+      <span>Store as default settings</span>
+    </div>
+  </form>
   <form method='POST' enctype='multipart/form-data'>
     <div class="settings">
       <b>Software update</b><span></span><span></span>
@@ -429,7 +492,7 @@ const char webWifi[] = R"literal(
     <span></span>
   <div>  
   <script type="text/javascript">
-    onload = function() {menuIndex(); wifiLoad(); wifiList();}
+    onload = function() {menuIndex(); wifiLoad(); wifiList(); udpTexts();}
     setInterval(function() { wifiUpdate(); }, 5000);
     document.getElementById('submitButton').addEventListener('click', function(event){
       event.preventDefault();
@@ -517,9 +580,66 @@ const char webWifi[] = R"literal(
           if ("cpufreq" in result) {
             document.getElementById("cpufreq").innerHTML = result.cpufreq;
           }
+          if ("udpport" in result) {
+            document.getElementsByName("udpport")[0].value = result.udpport;
+          }
+          if ("udpenable" in result) {
+            document.getElementsByName("udpenable")[0].checked = result.udpenable;
+          }
+          if ("udpdebug" in result) {
+            setLevels(result.udpdebug);
+          }
         }
       };
       xhttp.open("GET", "wifiload", true);
+      xhttp.send();
+    }
+    function logEnable() {
+      var xhttp = new XMLHttpRequest();
+      var ena = document.getElementsByName("udpenable")[0].checked ? 1:0;
+      xhttp.onreadystatechange = function() {};
+      xhttp.open("GET", "logenable?ena="+ena, true);
+      xhttp.send();
+    }
+    function setLevels(level) {
+      var es = document.getElementsByName("debug[]");
+      es.forEach((e, i) => {
+        var mask = 1 << i;
+        if ((level & mask) != 0) {
+          e.checked = true;
+        } else {
+          e.checked = false;
+        }
+      });
+    }
+    function updateLevels() {
+      var xhttp = new XMLHttpRequest();
+      var lvl = 0;
+      var es = document.getElementsByName("debug[]");
+      es.forEach((e, i) => {
+        var mask = 1 << i;
+        if (e.checked) {
+          lvl |= mask;          
+        } else {
+          lvl &= ~mask;
+        }
+      });
+      xhttp.onreadystatechange = function() {};
+      xhttp.open("GET", "loglevel?lvl="+lvl, true);
+      xhttp.send();
+    }
+    function udpTexts() {
+      var xhttp = new XMLHttpRequest();
+      xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+          var es = document.getElementsByName("debugtext[]");
+          var result = JSON.parse(this.responseText);
+          result.forEach((logtext,i) => {
+            es[i].innerHTML = logtext;
+          });      
+        }
+      };
+      xhttp.open("GET", "logtexts", true);
       xhttp.send();
     }
     function wifiList() {

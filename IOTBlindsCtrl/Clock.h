@@ -13,10 +13,6 @@
 #include <WiFiUdp.h>
 #include <TimeLib.h>
 
-#ifdef DEBUG_SERIAL
-//#define DEBUG_NTPClient
-#endif
-
 #define SEVENZYYEARS 2208988800UL
 #define NTP_PACKET_SIZE 48
 #define NTP_DEFAULT_LOCAL_PORT 1337

@@ -11,10 +11,6 @@
 
 #include <PubSubClient.h>
 
-#ifdef DEBUG_SERIAL
-//#define DEBUG_MQTT
-#endif
-
 #define MQTT_SERVER "mqtt.broker.com"
 #define MQTT_PORT 1883
 

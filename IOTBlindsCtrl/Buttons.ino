@@ -15,26 +15,30 @@
  */ 
  
 #include "Buttons.h"
-#include "Settings.h"
-#include "Blind.h"
-#include "Commands.h"
 
-volatile CButtons::buttonstate CButtons::buttonState = idle;
-TimerHandle_t CButtons::timer;
-portMUX_TYPE CButtons::isrMux = portMUX_INITIALIZER_UNLOCKED;
+StaticTimer_t CButtons::upTimerBuffer;
+TimerHandle_t CButtons::upTimer; // = NULL;
+StaticTimer_t CButtons::dnTimerBuffer;
+TimerHandle_t CButtons::dnTimer; // = NULL;
+volatile CButtons::isrData CButtons::upData = {CButtons::idle, 0};
+volatile CButtons::isrData CButtons::dnData = {CButtons::idle, 0};
+portMUX_TYPE CButtons::upMux = portMUX_INITIALIZER_UNLOCKED;
+portMUX_TYPE CButtons::dnMux = portMUX_INITIALIZER_UNLOCKED;
+
 
 CButtons::CButtons() { // constructor
-  pinMode(BUTTONUP_PIN, INPUT);
-  pinMode(BUTTONDN_PIN, INPUT);
+  pinMode(BUTTONUP_PIN, INPUT); //4k7 pull-down, change to INPUT_PULLDOWN if no resistor
+  pinMode(BUTTONDN_PIN, INPUT); //4k7 pull-down, change to INPUT_PULLDOWN if no resistor
 }
 
 void CButtons::init(void) {
-  timer = xTimerCreateStatic("", pdMS_TO_TICKS(RESET_TIME), pdFALSE, (void *)0, timerCallback, &timerBuffer);
+  upTimer = xTimerCreateStatic("upbutton", pdMS_TO_TICKS(DEBOUNCE_TIME), pdFALSE, (void *)UP_TIMER, timerCallback, &upTimerBuffer);
+  dnTimer = xTimerCreateStatic("dnbutton", pdMS_TO_TICKS(DEBOUNCE_TIME), pdFALSE, (void *)DOWN_TIMER, timerCallback, &dnTimerBuffer);
   if ((digitalRead(BUTTONDN_PIN)) || (digitalRead(BUTTONUP_PIN))) {
     blind.setBlindEnabled(false); // do not move blinds when in test mode
   }
-  attachInterrupt(BUTTONUP_PIN, isr_buttons, CHANGE);
-  attachInterrupt(BUTTONDN_PIN, isr_buttons, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(BUTTONUP_PIN), isr_buttonUp, RISING);
+  attachInterrupt(digitalPinToInterrupt(BUTTONDN_PIN), isr_buttonDn, RISING);  
 }
 
 void CButtons::handle(void) {
@@ -52,148 +56,162 @@ boolean CButtons::initButtonPressed(void) {
 void CButtons::handleButton() {
   switch (checkButton()) {
     case up:
-#ifdef DEBUG_BUTTONS
-      Serial.println("button up");
-#endif
-      cmdQueue.addCommand(CMD_UP);
+      logger.printf(LOG_BUTTONS, "Button up");
+      stateMachine.setCmd(CMD_UP);
       break;
     case down:
-#ifdef DEBUG_BUTTONS
-      Serial.println("button down");
-#endif
-      cmdQueue.addCommand(CMD_DOWN);
+      logger.printf(LOG_BUTTONS, "Button down");
+      stateMachine.setCmd(CMD_DOWN);
       break;
     case both:
-#ifdef DEBUG_BUTTONS
-      Serial.println("button both");
-#endif
-      cmdQueue.addCommand(CMD_MANUAL);
+      logger.printf(LOG_BUTTONS, "Button both");
+      stateMachine.setCmd(CMD_MANUAL);
       break;
     case reset:
-#ifdef DEBUG_BUTTONS
-      Serial.println("reset");
-#endif
+      logger.printf("System reset");
       ESP.restart();
       break;
   }
 }
 
-CButtons::buttonstate CButtons::checkButton() {
-  buttonstate state = idle;
+CButtons::buttonaction CButtons::checkButton() {
+  buttonaction action = none;
+  isrData upCopy = {idle, 0};
+  isrData dnCopy = {idle, 0};
 
-  portENTER_CRITICAL(&isrMux);
-  if ((buttonState == up) || (buttonState == down) || (buttonState == both) || (buttonState == reset)) {
-    state = buttonState;
-    buttonState = idle;
+#ifdef BUTTON_HW_DEBUG
+  String logString = "";
+#endif
+  portENTER_CRITICAL(&upMux);
+  if (upData.state != idle) {
+#ifdef BUTTON_HW_DEBUG
+    logString = "Up, state: " + String(upData.state) + ", count: " + String(upData.count);
+#endif
+    memcpy((void*)&upCopy, (void*)&upData, sizeof(isrData));
   }
-  portEXIT_CRITICAL(&isrMux);
+  portEXIT_CRITICAL(&upMux);
+#ifdef BUTTON_HW_DEBUG
+  if (!logString.isEmpty()) {
+    logger.printf(LOG_BUTTONS, logString);  
+  }
+  logString = "";
+#endif
+  portENTER_CRITICAL(&dnMux);
+  if (dnData.state != idle) {
+#ifdef BUTTON_HW_DEBUG
+    logString = "Down, state: " + String(dnData.state) + ", count: " + String(dnData.count);
+#endif
+    memcpy((void*)&dnCopy, (void*)&dnData, sizeof(isrData));
+  }
+  portEXIT_CRITICAL(&dnMux);
+#ifdef BUTTON_HW_DEBUG
+  if (!logString.isEmpty()) {
+    logger.printf(LOG_BUTTONS, logString);  
+  }
+#endif
+  if (upCopy.state == fired) {
+    if (dnCopy.state > debounce) { // both
+      if (upCopy.count > RESET_COUNTS) {
+        action = reset;
+      } else {
+        action = both;
+      }
+    } else { // up
+      action = up;
+    }
+  } else if (dnCopy.state == fired) {
+    if (upCopy.state > debounce) { // both
+      if (dnCopy.count > RESET_COUNTS) {
+        action = reset;
+      } else {
+        action = both;
+      }
+    } else { // dn
+      action = down;
+    }
+  }
 
-  return state;
+  idleButton(action);
+
+  return action;
 }
 
-void IRAM_ATTR CButtons::isr_buttons() {
-  boolean bUp = digitalRead(BUTTONUP_PIN);
-  boolean bDown = digitalRead(BUTTONDN_PIN);
-  unsigned long elapsed = RESET_TIME - pdTICKS_TO_MS(xTimerGetExpiryTime(timer) - xTaskGetTickCount());
-  switch (buttonState) {
-    case upd:
-      if (!bUp) {
-        portENTER_CRITICAL_ISR(&isrMux);
-        if (elapsed > DEBOUNCE_TIME) {
-          buttonState = up;
-        } else {
-          buttonState = idle;
-        }
-        portEXIT_CRITICAL_ISR(&isrMux);
-      } else if (bDown) {
-        BaseType_t higher_task_woken = pdFALSE;
-        if (xTimerStartFromISR(timer, &higher_task_woken) == pdPASS) {
-          portENTER_CRITICAL_ISR(&isrMux);
-          buttonState = bothd;
-          portEXIT_CRITICAL_ISR(&isrMux);
-        } else {
-          portENTER_CRITICAL_ISR(&isrMux);
-          buttonState = idle;
-          portEXIT_CRITICAL_ISR(&isrMux);
-        }
-        if (higher_task_woken) {
-          portYIELD_FROM_ISR();
-        }
-      } else {
-        portENTER_CRITICAL_ISR(&isrMux);
-        buttonState = idle;
-        portEXIT_CRITICAL_ISR(&isrMux);
-      }
-      break;
-    case downd:
-      if (!bDown) {
-        portENTER_CRITICAL_ISR(&isrMux);
-        if (elapsed > DEBOUNCE_TIME) {
-          buttonState = down;
-        } else {
-          buttonState = idle;
-        }
-        portEXIT_CRITICAL_ISR(&isrMux);
-      } else if (bUp) {
-        BaseType_t higher_task_woken = pdFALSE;
-        if (xTimerStartFromISR(timer, &higher_task_woken) == pdPASS) {
-          portENTER_CRITICAL_ISR(&isrMux);
-          buttonState = bothd;
-          portEXIT_CRITICAL_ISR(&isrMux);
-        } else {
-          portENTER_CRITICAL_ISR(&isrMux);
-          buttonState = idle;
-          portEXIT_CRITICAL_ISR(&isrMux);
-        }
-        if (higher_task_woken) {
-          portYIELD_FROM_ISR();
-        }
-      } else {
-        portENTER_CRITICAL_ISR(&isrMux);
-        buttonState = idle;
-        portEXIT_CRITICAL_ISR(&isrMux);
-      }
-      break;
-    case bothd:
-      if (!bDown & !bUp) {
-        portENTER_CRITICAL_ISR(&isrMux);
-        if (xTimerIsTimerActive(timer) == pdFALSE) {
-          buttonState = reset;
-        } else if (elapsed > DEBOUNCE_TIME) {
-          buttonState = both;
-        } else {
-          buttonState = idle;
-        }
-        portEXIT_CRITICAL_ISR(&isrMux);
-      } else if (bDown & bUp) {
-        portENTER_CRITICAL_ISR(&isrMux);
-        buttonState = idle;
-        portEXIT_CRITICAL_ISR(&isrMux);
-      }
-      break;
-    default:
-      if (bUp|bDown) {
-        BaseType_t higher_task_woken = pdFALSE;
-        if (xTimerStartFromISR(timer, &higher_task_woken) == pdPASS) {
-          portENTER_CRITICAL_ISR(&isrMux);
-          if (bUp & bDown) {
-            buttonState = bothd;
-          } else if (bUp) {
-            buttonState = upd;
-          } else if (bDown) {
-            buttonState = downd;
-          }
-          portEXIT_CRITICAL_ISR(&isrMux);
-        }
-        if (higher_task_woken) {
-          portYIELD_FROM_ISR();
-        }
-      } 
-      break;
+void CButtons::idleButton(buttonaction action) {
+  if (action != none) { // if idle do nothing
+#ifdef BUTTON_HW_DEBUG
+    logger.printf(LOG_BUTTONS, "Action: " + String(action));
+#endif
+    if (action != down) { // up, both, reset
+      portENTER_CRITICAL(&upMux);
+      upData.state = idle;
+      portEXIT_CRITICAL(&upMux);
+    }
+    if (action != up) { // down, both, reset
+      portENTER_CRITICAL(&dnMux);
+      dnData.state = idle;
+      portEXIT_CRITICAL(&dnMux);
+    }
   }
+}
+
+void IRAM_ATTR CButtons::isr_buttonUp() {
+  portENTER_CRITICAL_ISR(&upMux);
+  if (upData.state == idle) {
+    if (xTimerStartFromISR(upTimer, NULL) == pdPASS) {
+      upData.state = debounce;
+      upData.count = 0;
+    }
+  }
+  portEXIT_CRITICAL_ISR(&upMux);
+}
+
+void IRAM_ATTR CButtons::isr_buttonDn() {
+  portENTER_CRITICAL_ISR(&dnMux);
+  if (dnData.state == idle) {
+    if (xTimerStartFromISR(dnTimer, NULL) == pdPASS) {
+      dnData.state = debounce;
+      dnData.count = 0;
+    }
+  }
+  portEXIT_CRITICAL_ISR(&dnMux);
 }
 
 void CButtons::timerCallback(TimerHandle_t xTimer) {
+  if ((uint32_t)pvTimerGetTimerID(xTimer) == UP_TIMER) {
+    if (digitalRead(BUTTONUP_PIN) == LOW) {
+      portENTER_CRITICAL(&upMux);
+      if (!upData.count) {
+        upData.state = idle;  
+      } else if (upData.state != idle) {
+        upData.state = fired; 
+        upData.count++;
+      }
+      portEXIT_CRITICAL(&upMux);      
+    } else if (upData.state != idle) {
+      portENTER_CRITICAL(&upMux);
+      upData.state = pressed;
+      upData.count++;
+      portEXIT_CRITICAL(&upMux);
+      xTimerStart(xTimer, portMAX_DELAY);
+    }   
+  } else { // DOWN_TIMER
+    if (digitalRead(BUTTONDN_PIN) == LOW) {
+      portENTER_CRITICAL(&dnMux);
+      if (!dnData.count) {
+        dnData.state = idle;  
+      } else if (dnData.state != idle) {
+        dnData.state = fired; 
+        dnData.count++;
+      }
+      portEXIT_CRITICAL(&dnMux);      
+    } else if (dnData.state != idle) {
+      portENTER_CRITICAL(&dnMux);
+      dnData.state = pressed;
+      dnData.count++;
+      portEXIT_CRITICAL(&dnMux);
+      xTimerStart(xTimer, portMAX_DELAY);
+    }
+  }
 }
 
 CButtons buttons;

@@ -7,17 +7,9 @@
  * Copyright: Ivo Helwegen
  */
 
-#include "IOTWifi.h"
 #include "WebServer.h"
-#include "Settings.h"
-#include "mqtt.h"
 #include "Index.h"
 #include "Json.h"
-#include "Commands.h"
-#include "Blind.h"
-#include "Temperature.h"
-#include "LightSensor.h"
-#include "StateMachine.h"
 
 WebServer server(WEB_PORT);
 String cWebServer::menuIndex = "0";
@@ -44,6 +36,10 @@ void cWebServer::init() {
   server.on("/wifisave", handleWifiSave);
   server.on("/wifimiscsave", handleWifiMiscSave);
   server.on("/wifiupdateota", HTTP_POST, handleWifiUpdateOTAResult, handleWifiUpdateOTA);
+  server.on("/logenable", handleWifiLogEnable);
+  server.on("/loglevel", handleWifiLogLevel);
+  server.on("/logsave", handleWifiLogSave);
+  server.on("/logtexts",handleWifiLogTexts);
   server.on("/blindload", handleBlindLoad);
   server.on("/blindsave", handleBlindSave);
   server.on("/mqttload", handleMqttLoad);
@@ -54,9 +50,7 @@ void cWebServer::init() {
   server.on("/doreboot", handleDoReboot);
   server.onNotFound(handleNotFound);
   server.begin(); // Web server start
-#ifdef DEBUG_WEBSERVER
-  Serial.print("Webserver: HTTP server started\n");
-#endif
+  logger.printf(LOG_WEBSERVER, "HTTP server started");
 }
 
 void cWebServer::handle() {
@@ -105,9 +99,7 @@ void cWebServer::handleRoot() {
 /** Redirect to captive portal if we got a request for another domain. Return true in that case so the page handler do not try to handle the request again. */
 boolean cWebServer::captivePortal() {
   if (!isIp(server.hostHeader()) && server.hostHeader() != (String(iotWifi.hostname) + ".local")) {
-#ifdef DEBUG_WEBSERVER
-    Serial.print("Webserver: Request redirected to captive portal\n");
-#endif
+    logger.printf(LOG_WEBSERVER, "Request redirected to captive portal");
     server.sendHeader("Location", String("http://") + toStringIp(server.client().localIP()), true);
     server.send(302, "text/plain", "");   // Empty content inhibits Content-length header so we have to close the socket ourselves.
     server.client().stop(); // Stop is needed because we sent no content length
@@ -222,7 +214,7 @@ String cWebServer::getBlindStatus() {
   String status = "Unknown";
   switch (stateMachine.getState()) {
     case stateMachine.ctrl:
-      if (stateMachine.ManualOnly) {
+      if (stateMachine.isManualOnly()) {
         status = "Idle (manual)";
       } else {
         status = "Idle";
@@ -268,7 +260,8 @@ void cWebServer::handleHomeUpdate() {
 
 void cWebServer::handleBlindCommand() {
   byte Cmd = (byte)server.arg("cmd").toInt();
-  cmdQueue.addCommand(Cmd);
+  logger.printf(LOG_WEBSERVER, "Ctrl Command: " + String(Cmd));
+  stateMachine.setCmd(Cmd);
   server.send(200, "text/plane", "Ok");
 }
 
@@ -301,6 +294,9 @@ void cWebServer::handleWifiLoad() {
   jString.AddItem("progmem", chiller.getProgramMem());
   jString.AddItem("sdkversion", chiller.getVersion());
   jString.AddItem("cpufreq", chiller.getCPUFreq());
+  jString.AddItem("udpport", settings.getShort(settings.UdpPort));
+  jString.AddItem("udpenable", logger.isEnabled());
+  jString.AddItem("udpdebug", logger.getDebug());
   server.send(200, "text/plane", jString.GetJson());
 }
 
@@ -361,30 +357,24 @@ void cWebServer::handleWifiMiscSave() {
 void cWebServer::handleWifiUpdateOTA() {
   HTTPUpload& upload = server.upload();
   if (upload.status == UPLOAD_FILE_START) {
-#ifdef DEBUG_WEBSERVER
-    Serial.printf("Update: %s\n", upload.filename.c_str());
-#endif
+    logger.printf(LOG_WEBSERVER, "Update: " + String(upload.filename.c_str()));
     if (!Update.begin(UPDATE_SIZE_UNKNOWN)) { //start with max available size
-#ifdef DEBUG_WEBSERVER
-      Update.printError(Serial);
-#endif
+      logger.printf("Update error: update cannot start");
+      //Update.printError(Serial);
     }
   } else if (upload.status == UPLOAD_FILE_WRITE) {
     /* flashing firmware to ESP*/
     if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
-#ifdef DEBUG_WEBSERVER
-      Update.printError(Serial);
-#endif
+      logger.printf("Update error: sizes differ");
+      //Update.printError(Serial);
     }
   } else if (upload.status == UPLOAD_FILE_END) {
     if (Update.end(true)) { //true to set the size to the current progress
-#ifdef DEBUG_WEBSERVER
-      Serial.printf("Update Success: %u\nLet's reboot\n", upload.totalSize);
-#endif
+      logger.printf(LOG_WEBSERVER, "Update Success: " + String(upload.totalSize));
+      logger.printf(LOG_WEBSERVER, "Let's reboot");
     } else {
-#ifdef DEBUG_WEBSERVER
-      Update.printError(Serial);
-#endif
+      logger.printf("Update error: update failed");
+      //Update.printError(Serial);
     }
   }
 }
@@ -396,6 +386,40 @@ void cWebServer::handleWifiUpdateOTAResult() {
   } else {
     handleDoReboot();
   }
+}
+
+void cWebServer::handleWifiLogEnable() {
+  bool ena = (bool)server.arg("ena").toInt();
+  logger.enable(ena);
+  server.send(200, "text/plane", "Ok");
+}
+
+void cWebServer::handleWifiLogLevel() {
+  short lvl = (short)server.arg("lvl").toInt();
+  logger.setDebug(lvl);
+  server.send(200, "text/plane", "Ok");
+}
+
+void cWebServer::handleWifiLogSave() {
+  byte bval;
+  unsigned short val;
+  val = (short)server.arg("udpport").toInt();
+  settings.set(settings.UdpPort, val);
+  bval = logger.isEnabled();
+  settings.set(settings.UdpEnabled, bval);
+  val = logger.getDebug();
+  settings.set(settings.UpdDebugLevel, val);
+  settings.update();
+  server.sendHeader("Location", "wifi", true);
+  server.send(302, "text/plain", "");    // Empty content inhibits Content-length header so we have to close the socket ourselves.
+  server.client().stop(); // Stop is needed because we sent no content length
+}
+
+void cWebServer::handleWifiLogTexts() {
+  JSON jString;
+  int arrayLen = (sizeof(levelTexts) / sizeof(String));
+  jString.AddArray("", (String*)levelTexts, arrayLen);
+  server.send(200, "text/plane", jString.GetJson());
 }
 
 void cWebServer::handleBlindLoad() {
@@ -596,9 +620,7 @@ void cWebServer::handleLogUpdate() {
 }
 
 void cWebServer::handleDoReboot() {
-#ifdef DEBUG_WEBSERVER
-  Serial.print("Rebooting ...\n");
-#endif
+  logger.printf("Rebooting ...");
   sendHeader();
   String Page;
   Page = String(webRebooting);

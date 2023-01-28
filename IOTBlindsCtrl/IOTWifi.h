@@ -7,6 +7,7 @@
  * Copyright: Ivo Helwegen
  */
 
+
 #ifndef IOTWifiCtrl_h
 #define IOTWifiCtrl_h
 
@@ -15,10 +16,6 @@
 #include <DNSServer.h>
 #include <ESPmDNS.h>
 #include <esp_wifi.h>
-
-#ifdef DEBUG_SERIAL
-#define DEBUG_IOTWIFI
-#endif
 
 #define APSSID           "IOTBlindsCtrlAP"
 #define APPSK            "12345678"

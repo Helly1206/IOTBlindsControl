@@ -8,26 +8,21 @@
  */ 
  
 #include "StateMachine.h"
-#include "Settings.h"
-#include "Clock.h"
-#include "Commands.h"
-#include "IOTWifi.h"
-#include "LEDs.h"
-#include "LightSensor.h"
-#include "Temperature.h"
-#include "Blind.h"
+
+portMUX_TYPE CStateMachine::cmdMux = portMUX_INITIALIZER_UNLOCKED;
 
 CStateMachine::CStateMachine() { // constructor
-}
-
-void CStateMachine::init(void) {
+  setCmd(CMD_NONE);
   State = ctrl;
   ManualOnly = false;
-  cmdQueue.addCommand(CMD_DOWN); // move down at start
   SunnyInterrupted = false;
   TwilightInterrupted = false;
   HotDayInterrupted = false;
   HotDayTimeStart = 0;
+}
+
+void CStateMachine::init(void) {
+  setCmd(CMD_DOWN); // move down at start
 }
 
 void CStateMachine::handle(void) {
@@ -40,18 +35,22 @@ void CStateMachine::handle(void) {
   switch (State) {
     case ctrl:
       if (CtrlMove(InputResult)) {
+        logger.printf(LOG_STATEMACHINE, "State ctrl");
         State = ctrl;
       } else if (CheckHotDay()) {
         blind.moveDir(blind.down);
         SetHotDayTimeStart();
+        logger.printf(LOG_STATEMACHINE, "State darkened");
         State = darkened;
       } else if (CheckSunny()) {
         blind.movePos(settings.getByte(settings.MotorSunnyPos));
         lightSensor.setSunny(true);
+        logger.printf(LOG_STATEMACHINE, "State sunny");
         State = sunny;
       } else if (CheckTwilight()) { // dark has priority above twilight (because same sensor higher value)
         blind.movePos(settings.getByte(settings.MotorSunnyPos));
         lightSensor.setTwilight(true);
+        logger.printf(LOG_STATEMACHINE, "State twilight");
         State = twilight;
       }
       break;  
@@ -60,20 +59,24 @@ void CStateMachine::handle(void) {
       SunnyInterrupted = false;
       if (CtrlMove(InputResult)) {
         SunnyInterrupted = true;
+        logger.printf(LOG_STATEMACHINE, "State ctrl");
         State = ctrl;
       } else if (CheckHotDay()) {
         blind.moveDir(blind.down);
         SetHotDayTimeStart();
+        logger.printf(LOG_STATEMACHINE, "State darkened");
         State = darkened;
       } else if (CheckSunGone()) { // sun is gone
         if (!blind.isMoving()) { // if still moving into sunny position, end this move
           blind.moveDir(blind.up);
           lightSensor.setSunny(false);
+          logger.printf(LOG_STATEMACHINE, "State ctrl");
           State = ctrl;  
         }
       } else if (CheckTwilight()) { // should not happen, but if sudden twilight appears, change state
         if (!blind.isMoving()) { // if still moving into sunny position, end this move
           lightSensor.setTwilight(true);
+          logger.printf(LOG_STATEMACHINE, "State twilight");
           State = twilight;
         }
       }
@@ -82,16 +85,19 @@ void CStateMachine::handle(void) {
       TwilightInterrupted = false;
       if (CtrlMove(InputResult)) {
         TwilightInterrupted = true;
+        logger.printf(LOG_STATEMACHINE, "State ctrl");
         State = ctrl;
       } else if (CheckTwilightGone()) { // twilight is gone
         if (!blind.isMoving()) { // if still moving into twilight position, end this move
           blind.moveDir(blind.up);
           lightSensor.setTwilight(false);
+          logger.printf(LOG_STATEMACHINE, "State ctrl");
           State = ctrl;  
         }    
       } else if (CheckSunny()) { // should not happen, but if sunny again, change state
         if (!blind.isMoving()) { // if still moving into twilight position, end this move
           lightSensor.setSunny(true);
+          logger.printf(LOG_STATEMACHINE, "State sunny");
           State = sunny;
         }
       }
@@ -101,17 +107,20 @@ void CStateMachine::handle(void) {
       HotDayInterrupted = false;
       if (CtrlMove(InputResult)) {
         HotDayInterrupted = true;
+        logger.printf(LOG_STATEMACHINE, "State ctrl");
         State = ctrl;
       } else if (CheckHotDayTimeOut()) {
         if (!blind.isMoving()) { // if still moving into twilight position, end this move
           blind.moveDir(blind.up);
           lightSensor.setTwilight(false);
           lightSensor.setSunny(false);
+          logger.printf(LOG_STATEMACHINE, "State ctrl");
           State = ctrl;  
         }
       } // no sunny/ dark check now
       break;
     default:
+      logger.printf(LOG_STATEMACHINE, "State ctrl");
       State = ctrl;
       break;
   }
@@ -128,17 +137,34 @@ CStateMachine::machinestate CStateMachine::getState() {
   return istate;
 }
 
+boolean CStateMachine::isManualOnly() {
+  return ManualOnly;
+}
+
+byte CStateMachine::setCmd(byte command) {
+  logger.printf(LOG_STATEMACHINE, "setCmd: " + String(command));
+  portENTER_CRITICAL(&cmdMux);
+  cmd = command;
+  portEXIT_CRITICAL(&cmdMux);
+  Clock.newCommand();
+  return command;
+}
+
 ///////////// PRIVATES ///////////////////////////
+
+byte CStateMachine::getCmd(void) {
+  byte command = CMD_NONE;
+  portENTER_CRITICAL(&cmdMux);
+  command = cmd;
+  cmd = CMD_NONE;
+  portEXIT_CRITICAL(&cmdMux);
+  return command;
+}
 
 // Stored command drawback: Button action won't work when stored command is waiting for execution
 byte CStateMachine::CheckInput(void) {
   byte retval = CMD_NONE;
-  byte CurrentCommand;
-  if (cmdQueue.commandStored()) {
-    CurrentCommand = cmdQueue.getStoredCommand();
-  } else {
-    CurrentCommand = cmdQueue.getNextCommand();
-  }
+  byte CurrentCommand = getCmd();
   if (CurrentCommand != CMD_NONE) { // new command waiting
     if (CurrentCommand == CMD_MANUAL) { // both buttons pressed
       ManualOnly = !ManualOnly;
@@ -150,16 +176,11 @@ byte CStateMachine::CheckInput(void) {
       LED.ManualCommand();
       retval = CMD_NONE;
     } else if (blind.isMoving()) {
-      // Store command and use later when movement is finished
-      if ((CurrentCommand == CMD_DOWN) || (CurrentCommand == CMD_UP) || (CurrentCommand == CMD_STOP)) {
-        LED.Command(); // short 1
-        retval = CMD_STOP;
-        lightSensor.reset(); // reset lightSensor at any move to not get strange moves immediately after because of integrator values
-        cmdQueue.clearStoredCommand();
-      } else {
-        // Store command and use later when movement is finished
-        cmdQueue.storeCommand(CurrentCommand);
-      }
+      // stop moving if any command when moving (exceptions can be made later, but are dangerous)
+      LED.Command(); // short 1
+      logger.printf(LOG_STATEMACHINE, "Stop moving blinds");
+      retval = CMD_STOP;
+      lightSensor.reset(); // reset lightSensor at any move to not get strange moves immediately after because of integrator values
     } else { // all commands are move commands, so always reset the lightSensor
       LED.Command(); // short 1
       if (CurrentCommand == CMD_SHADE) {
@@ -167,7 +188,6 @@ byte CStateMachine::CheckInput(void) {
       }
       retval = CurrentCommand;
       lightSensor.reset(); // reset lightSensor at any move to not get strange moves immediately after because of integrator values
-      cmdQueue.clearStoredCommand();
     }
   }
   return (retval);
@@ -175,9 +195,13 @@ byte CStateMachine::CheckInput(void) {
 
 boolean CStateMachine::CtrlMove(byte Command) {
   boolean ctrlAction = false;
+  if (Command != CMD_NONE) {    
+    logger.printf(LOG_STATEMACHINE, "Ctrl Command: " + String(Command));
+  }
   switch (Command) {
     case CMD_STOP:
       if (blind.isMoving()) {
+        logger.printf("Command: Stop!");
         blind.stop();
         ctrlAction = true;
       }
@@ -185,6 +209,7 @@ boolean CStateMachine::CtrlMove(byte Command) {
     case CMD_NONE:
       break;
     default: // pos 0 .. 100
+      logger.printf("Command: " + String(Command));
       blind.movePos(Command);
       ctrlAction = true;
       break;  

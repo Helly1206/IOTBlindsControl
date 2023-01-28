@@ -12,10 +12,6 @@
 
 #include "rom/rtc.h"
 
-#ifdef DEBUG_SERIAL
-//#define DEBUG_CHILLER
-#endif
-
 #define CHILLER_DELAY_TIME     10
 #define CHILLER_INTERVAL_TIME  100 //500
 
@@ -50,9 +46,7 @@ private:
   chillmode chillMode;
   unsigned long uTaskDuration;
   unsigned long timeStamp;
-#ifdef DEBUG_CHILLER
-  unsigned long temptime;
-#endif
+  byte ctr;
 };
 
 extern CChiller chiller;

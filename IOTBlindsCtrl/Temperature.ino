@@ -16,7 +16,6 @@
 
 #include <OneWire.h>
 #include "Temperature.h"
-#include "Blind.h"
 
 //Temperature chip i/o
 OneWire ds(DS18S20_PIN);
@@ -31,7 +30,7 @@ CTemp::CTemp() { // constructor
 
 void CTemp::init(void) {
   ClearFilter();
-  timer = xTimerCreateStatic("", pdMS_TO_TICKS(SAMPLE_TEMP), pdTRUE, (void *)0, timerCallback, &timerBuffer);
+  timer = xTimerCreateStatic("temp", pdMS_TO_TICKS(SAMPLE_TEMP), pdTRUE, (void *)0, timerCallback, &timerBuffer);
   xTimerStart(timer, portMAX_DELAY);
   tempState = start;
 }
@@ -65,12 +64,7 @@ void CTemp::handle(void) {
         if (!noDevice) {
           FilteredTemp = Filter(DS18S20Temp());
         }
-#ifdef TEMP_TEST
-        Serial.print("DEBUG: ");
-        Serial.print(millis());
-        Serial.print(", Temperature [degC]: ");
-        Serial.println(FilteredTemp);
-#endif
+        logger.printf(LOG_TEMPERATURE, "Temperature [degC]: " + String(FilteredTemp));
       default:
         tempState = start;
         break;
@@ -96,25 +90,19 @@ boolean CTemp::DS18S20Address(void) {
   if ( !ds.search(Address)) {
     //no more sensors on chain, reset search
     ds.reset_search();
-#ifdef DEBUG_TEMP
-    Serial.println("DEBUG: DS18S20 - No more sensors on chain!");
-#endif
+    logger.printf(LOG_TEMPERATURE, "DS18S20 - No more sensors on chain!");
     return (false);
   }
 
   if ( OneWire::crc8( Address, 7) != Address[7]) {
-#ifdef DEBUG_TEMP
-    Serial.println("DEBUG: DS18S20 - CRC is not valid!");
-#endif
-      return (false);
+    logger.printf(LOG_TEMPERATURE, "DS18S20 - CRC is not valid!");
+    return (false);
   }
 
   if ((Address[0] != ADDR0_DS18S20) && (Address[0] != ADDR0_DS18B20)) {
-#ifdef DEBUG_TEMP
     if (!noDevice) {
-      Serial.println("DEBUG: DS18S20 - Device is not recognized");
+      logger.printf(LOG_TEMPERATURE, "DS18S20 - Device is not recognized");
     }
-#endif
     noDevice = true;
     SampledTemp = ABS_ZERO;
     return (false);
@@ -122,22 +110,15 @@ boolean CTemp::DS18S20Address(void) {
     noDevice = false;
   }
 
-#ifdef DEBUG_TEMP
-  Serial.print("DEBUG: DS18S20 - Address: ");
-  Serial.print(Address[0], HEX);
-  Serial.print(", "); 
-  Serial.println(Address[1], HEX);
-#endif
+  logger.printf(LOG_TEMPERATURE, "DS18S20 - Address: " + String(Address[0], HEX) + (", ") + String(Address[1], HEX));
   return (true);
 }
 
 void CTemp::DS18S20StartConversion(void) {
   if ((Address[0] != ADDR0_DS18S20) && (Address[0] != ADDR0_DS18B20)) {
-#ifdef DEBUG_TEMP
     if (!noDevice) {
-      Serial.println("DEBUG: DS18S20 - Device is not recognized");
+      logger.printf(LOG_TEMPERATURE, "DS18S20 - Device is not recognized");
     }
-#endif
     noDevice = true;
     return; // 0 degrees if no sensor attached
   }  
@@ -147,9 +128,7 @@ void CTemp::DS18S20StartConversion(void) {
   ds.write(0x44,1); // start conversion, with parasite power on at the end
 
   if (ds.reset() <= 0) {
-#ifdef DEBUG_TEMP
-    Serial.println("DEBUG: DS18S20 - Unable to reset device");
-#endif
+    logger.printf(LOG_TEMPERATURE, "DS18S20 - Unable to reset device");
     noDevice = true;
     return; // 0 degrees if no sensor attached
   }
@@ -171,10 +150,7 @@ float CTemp::DS18S20Temp(void) {
   }
 
 #ifdef DEBUG_TEMP
-  Serial.print("DEBUG: DS18S20 - Data: ");
-  Serial.print(data[1], HEX);
-  Serial.print(", "); 
-  Serial.println(data[0], HEX);
+  logger.printf(LOG_TEMPERATURE, "DS18S20 - Data: " + String(data[1], HEX) + ", " + String(data[0], HEX));
 #endif
 
   int16_t raw = ((data[1] << 8) | data[0]); //using two's compliment
@@ -230,12 +206,9 @@ float CTemp::MovAvFilter(float Sample) {
     }
   }
 #ifdef DEBUG_TEMP
-    Serial.print("DEBUG: Sample: ");
-    Serial.print(Sample);
-    Serial.print(", sum: "); 
-    Serial.println(SumMemory);
+  logger.printf(LOG_TEMPERATURE, "Sample: " + String(Sample) + ", sum: " + String(SumMemory));
 #endif
-  
+
   return (SumMemory/MOVAV_TEMP);
 }
 
@@ -263,11 +236,8 @@ float CTemp::LimitFilter(float Sample) {
     }
   }
 
-#ifdef DEBUG_TEMPA
-  Serial.print("DEBUG: Sample: ");
-  Serial.print(Sample);
-  Serial.print(", mem: "); 
-  Serial.println(TempMemory);
+#ifdef DEBUG_TEMP
+  logger.printf(LOG_TEMPERATURE, "Sample: " + String(Sample) + ", mem: " + String(TempMemory));
 #endif
   
   return (TempMemory);

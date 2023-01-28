@@ -10,11 +10,6 @@
 #ifndef Blind_h
 #define Blind_h
 
-#ifdef DEBUG_SERIAL
-//#define DEBUG_BLIND
-//#define DEBUG_BLIND_TIMING
-#endif
-
 #ifndef BLINDUPDN_PIN
 #define BLINDUPDN_PIN   -1
 #endif

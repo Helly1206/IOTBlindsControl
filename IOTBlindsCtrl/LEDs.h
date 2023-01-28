@@ -10,10 +10,6 @@
 #ifndef IOTLEDs_h
 #define IOTLEDs_h
 
-#ifdef DEBUG_SERIAL
-//#define DEBUG_LED
-#endif
-
 #ifndef SLED_PIN
 #define SLED_PIN    -1
 #endif
@@ -23,6 +19,8 @@
 #ifndef LEDDN_PIN
 #define LEDDN_PIN  -1
 #endif
+
+//#define USE_SYSTEM_LED
 
 #define T_TIME1     (900)
 #define T_TIME2     (100)
@@ -79,6 +77,7 @@ private:
   StaticTimer_t timerBuffer;
   static portMUX_TYPE mux;
   static ledmodes modes;
+  static bool timerModeChange;
   static ledflash flash;
 };
 
