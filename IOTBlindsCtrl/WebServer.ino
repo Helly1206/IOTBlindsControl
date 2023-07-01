@@ -614,7 +614,7 @@ void cWebServer::handleLogLoad() {
 void cWebServer::handleLogUpdate() {
   JSON jString;
   String datastr[1];
-  datastr[0] = Clock.getFormattedTime() + ", " + String(lightSensor.getRaw()) + " (" + String(lightSensor.OutSunny) + ", " + String(lightSensor.OutTwilight) + "), " + String(temp.getRealTimeTemp()) + ", " + String(blind.getPosition()) + ", " + getBlindStatus();
+  datastr[0] = Clock.getFormattedTime() + ", " + String(lightSensor.getRaw()) + "/" + String(lightSensor.getDig()) + " (" + String(lightSensor.OutSunny) + ", " + String(lightSensor.OutTwilight) + "), " + String(temp.getRealTimeTemp()) + ", " + String(blind.getPosition()) + ", " + getBlindStatus();
   jString.AddArray("", datastr, 1);
   server.send(200, "text/plane", jString.GetJson());
 }

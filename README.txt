@@ -1,4 +1,4 @@
-IOTBlindsControl v1.2.0
+IOTBlindsControl v1.2.1
 
 IOTBlindsControl - Smarthome controller for roller blinds
 ================ = ========= ========== === ====== ======

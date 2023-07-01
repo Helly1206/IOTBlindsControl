@@ -1,3 +1,7 @@
+[B]1.2.1[/B]
+- Added logging for lightsensor
+- Inverted digital lightsensor signal as it was interpreted incorrectly
+
 [B]1.2.0[/B]
 - Removed command queue as queuing commands doesn't make sense. Implement command handling in statemachine
 - Added UDP log to log and debug over the network

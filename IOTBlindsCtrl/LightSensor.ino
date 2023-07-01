@@ -78,6 +78,14 @@ unsigned short CLightSensor::getRaw() {
   return raw.value;
 }
 
+boolean CLightSensor::getDig() {
+#ifdef USE_PIND 
+    return !digitalRead(SENSOR_PIND);
+#else
+    return false;
+#endif
+}
+
 void CLightSensor::CalcTwilight(void) {
   unsigned short Threshold;
   if (Twilight) { // if already dark, use hysteresis to get light again
@@ -89,6 +97,9 @@ void CLightSensor::CalcTwilight(void) {
   OutTwilight = Integrate(OutTwilight, settings.getShort(settings.TwilightIGain), CompThreshold(raw.value, Threshold, POSITIVE));  
   if (!Twilightd) {
     Twilight = CompThreshold(OutTwilight, settings.getShort(settings.OutputThreshold), POSITIVE);
+    if (Twilight) {
+        logger.printf(LOG_SENSOR, "Twilight state detected");
+      }
     Twilightd = Twilight;
   } else { // after manual interrupt, twilight won't work until light first
     Twilightd = CompThreshold(OutTwilight, settings.getShort(settings.OutputThreshold), POSITIVE);
@@ -105,12 +116,15 @@ void CLightSensor::CalcSunny(void) {
   // lower number is lighter, so negative threshold
   OutSunny = Integrate(OutSunny, settings.getShort(settings.SunnyIGain), CompThreshold(raw.value, Threshold, NEGATIVE));  
 #ifdef USE_PIND 
-  if (digitalRead(SENSOR_PIND) == HIGH) { // only check sunny if digital pin is high, otherwise broken sensor might detect as sunny
+  if (digitalRead(SENSOR_PIND) == LOW) { // only check sunny if digital pin is high, otherwise broken sensor might detect as sunny
 #else
   if (true) {
 #endif
     if (!Sunnyd) {
       Sunny = CompThreshold(OutSunny, settings.getShort(settings.OutputThreshold), POSITIVE);
+      if (Sunny) {
+        logger.printf(LOG_SENSOR, "Sunny state detected");
+      }
       Sunnyd = Sunny;
     } else { // after manual interrupt, sunny won't work until dark first
       Sunnyd = CompThreshold(OutSunny, settings.getShort(settings.OutputThreshold), POSITIVE);

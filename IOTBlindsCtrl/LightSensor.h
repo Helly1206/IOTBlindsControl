@@ -30,6 +30,7 @@ public:
   void setTwilight(boolean bval);
   void setSunny(boolean bval);
   unsigned short getRaw();
+  boolean getDig();
   unsigned short OutSunny;
   unsigned short OutTwilight;
   boolean Twilight;

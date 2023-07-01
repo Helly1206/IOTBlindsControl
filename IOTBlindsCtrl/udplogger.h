@@ -25,6 +25,7 @@
 #define LOG_WEBSERVER     logger.l10
 #define LOG_MQTT          logger.l11
 #define LOG_MQTTCMD       logger.l12
+#define LOG_SENSOR        logger.l13
 
 const char text0[] = "blind actuation";
 const char text1[] = "blind actuation timing";
@@ -38,7 +39,7 @@ const char text8[] = "temperature sensor";
 const char text9[] = "webserver";
 const char text10[] = "MQTT (command interface)";
 const char text11[] = "MQTT commands";
-const char text12[] = "N/A";
+const char text12[] = "light sensor";
 const char text13[] = "N/A";
 const char text14[] = "N/A";
 const char text15[] = "N/A";
@@ -59,7 +60,7 @@ const char stext8[] = "TEMP";
 const char stext9[] = "WEB";
 const char stext10[] = "MQTT";
 const char stext11[] = "MQTTCMD";
-const char stext12[] = "NA";
+const char stext12[] = "LIGHT";
 const char stext13[] = "NA";
 const char stext14[] = "NA";
 const char stext15[] = "NA";
