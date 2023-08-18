@@ -952,6 +952,12 @@ const char webMqtt[] = R"literal(
       <label>MQTT enabled</label>
       <input type="checkbox" name="usemqtt"></input>
       <span></span>
+      <label>Home Assistant enabled</label>
+      <input type="checkbox" name="hadisco"></input>
+      <span>Home Assistant Discovery</span>
+      <label>Home Assistant topic</label>
+      <input type="text" name="hatopic"></input>
+      <span></span>
       <span></span>
       <input type='submit' value='Store settings'/>
       <span>Reboot required</span>
@@ -1012,6 +1018,12 @@ const char webMqtt[] = R"literal(
           }
           if ("usemqtt" in result) {
             document.getElementsByName("usemqtt")[0].checked = result.usemqtt;
+          }
+          if ("hadisco" in result) {
+            document.getElementsByName("hadisco")[0].checked = result.hadisco;
+          }
+          if ("hatopic" in result) {
+            document.getElementsByName("hatopic")[0].value = result.hatopic;
           }
           if ("topics" in result) {
             var settingsClass = document.getElementsByClassName("settings")[0];

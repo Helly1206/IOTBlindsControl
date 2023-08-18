@@ -111,6 +111,8 @@ class cSettings {
     Item *mqttQos;             // [byte] [0..1]
     Item *mqttRetain;          // [bool]
     Item *UseMqtt;             // [bool]
+    Item *haDisco;             // [bool]
+    Item *haTopic;             // String 32
 
     unsigned short memsize;
   private:
@@ -120,6 +122,7 @@ class cSettings {
     void defaultBlindParameters();
     void defaultWifiParameters();
     void defaultMqttParameters();
+    void defaultHaParameters(bool doUpdate);
     void aesDecrypt(char *input, char *output, int dataLength);
     void aesEncrypt(const char *input, char *output, int dataLength);
 };

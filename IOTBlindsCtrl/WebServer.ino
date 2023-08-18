@@ -533,6 +533,8 @@ void cWebServer::handleMqttLoad() {
   jString.AddItem("mqttqos", settings.getByte(settings.mqttQos));
   jString.AddItem("mqttretain", (boolean)settings.getByte(settings.mqttRetain));
   jString.AddItem("usemqtt", UseMqtt);
+  jString.AddItem("hadisco", (boolean)settings.getByte(settings.haDisco));
+  jString.AddItem("hatopic", settings.getString(settings.haTopic));
   int publishLen = (sizeof(PublishTopics) / sizeof(topics));
   int subscribeLen = (sizeof(SubscribeTopics) / sizeof(topics));
   String arraystr[publishLen + subscribeLen];
@@ -595,6 +597,11 @@ void cWebServer::handleMqttSave() {
   settings.set(settings.mqttRetain, bval);
   bval = (byte)(server.arg("usemqtt")=="on");
   settings.set(settings.UseMqtt, bval);
+  bval = (byte)(server.arg("hadisco")=="on");
+  settings.set(settings.haDisco, bval);
+  sval = server.arg("hatopic");
+  sval2 = mqtt.fixTopic(sval);
+  settings.set(settings.haTopic, sval2);
   settings.update();
   server.sendHeader("Location", "mqtt", true);
   server.send(302, "text/plain", "");    // Empty content inhibits Content-length header so we have to close the socket ourselves.

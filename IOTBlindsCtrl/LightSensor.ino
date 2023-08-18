@@ -98,18 +98,21 @@ void CLightSensor::CalcTwilight(void) {
   if (!Twilightd) {
     Twilight = CompThreshold(OutTwilight, settings.getShort(settings.OutputThreshold), POSITIVE);
     if (Twilight) {
-        logger.printf(LOG_SENSOR, "Twilight state detected");
+        logger.printf(LOG_SENSOR, "Twilight detected");
       }
     Twilightd = Twilight;
   } else { // after manual interrupt, twilight won't work until light first
     Twilightd = CompThreshold(OutTwilight, settings.getShort(settings.OutputThreshold), POSITIVE);
+    if (!Twilightd) {
+        logger.printf(LOG_SENSOR, "Twilight gone detected");
+      }
   }  
 }
 
 void CLightSensor::CalcSunny(void) {
   unsigned short Threshold;
   if (Sunny) { // if already sunny, use hysteresis to get darker again
-    Threshold = settings.getShort(settings.SunnyThreshold) - settings.getShort(settings.SunnyHysterises);
+    Threshold = settings.getShort(settings.SunnyThreshold) + settings.getShort(settings.SunnyHysterises);
   } else {
     Threshold = settings.getShort(settings.SunnyThreshold);
   }
@@ -123,11 +126,14 @@ void CLightSensor::CalcSunny(void) {
     if (!Sunnyd) {
       Sunny = CompThreshold(OutSunny, settings.getShort(settings.OutputThreshold), POSITIVE);
       if (Sunny) {
-        logger.printf(LOG_SENSOR, "Sunny state detected");
+        logger.printf(LOG_SENSOR, "Sunny detected");
       }
       Sunnyd = Sunny;
     } else { // after manual interrupt, sunny won't work until dark first
       Sunnyd = CompThreshold(OutSunny, settings.getShort(settings.OutputThreshold), POSITIVE);
+      if (!Sunnyd) {
+        logger.printf(LOG_SENSOR, "Sun gone detected");
+      }
     }
   } else {
     Sunny = false;

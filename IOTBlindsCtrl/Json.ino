@@ -10,8 +10,7 @@
 #include "Json.h"
 
 JSON::JSON() {
-  JsonString = "";
-  arrayOnly = false;
+  Clear();
 }
 
 String JSON::GetJson() {
@@ -22,12 +21,30 @@ String JSON::GetJson() {
   }
 }
 
+void JSON::AddItem(String tag, JSON item) {
+  String result = "";
+  if ((tag.length() == 0) || (arrayOnly)) {
+    return;
+  }    
+  result = "\"" + tag + "\":" + item.GetJson();
+  AddToJsonString(result);
+}
+
 void JSON::AddItem(String tag, String item) {
   String result = "";
   if ((tag.length() == 0) || (arrayOnly)) {
     return;
   }    
   result = "\"" + tag + "\":\"" + item + "\"";
+  AddToJsonString(result);
+}
+
+void JSON::AddItem(String tag, char* item) {
+  String result = "";
+  if ((tag.length() == 0) || (arrayOnly)) {
+    return;
+  }    
+  result = "\"" + tag + "\":\"" + String(item) + "\"";
   AddToJsonString(result);
 }
 
@@ -84,6 +101,11 @@ void JSON::AddArray(String tag, String item[], int n) {
   }
   result += "]";
   AddToJsonString(result);
+}
+
+void JSON::Clear() {
+  JsonString = "";
+  arrayOnly = false;
 }
 
 ///////////// PRIVATES ///////////////////////////

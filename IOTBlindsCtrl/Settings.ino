@@ -41,7 +41,7 @@ void cSettings::init() {
   byte b;
   String data = "";
   delay(2000);
-  for (i=0;i<UseMqtt->start + UseMqtt->size; i++) {
+  for (i=0;i<haTopic->start + haTopic->size; i++) {
     EEPROM.get(i, b);
     data += String(b, HEX) + "-";
   }
@@ -49,7 +49,7 @@ void cSettings::init() {
 #endif
 #ifdef FORCE_DEFAULTS
   logger.printf("Settings: Forcing default settings");
-  resetSettings(TwilightIGain->start, (UseMqtt->start + UseMqtt->size) - TwilightIGain->start);
+  resetSettings(TwilightIGain->start, (haTopic->start + haTopic->size) - TwilightIGain->start);
 #endif
   if (IsEmpty(TwilightIGain->start, (MotorEnabled->start + MotorEnabled->size) - TwilightIGain->start)) {
     logger.printf("Settings: No blind settings, loading default");
@@ -59,10 +59,14 @@ void cSettings::init() {
     logger.printf("Settings: No wifi settings, loading default");
     defaultWifiParameters();
   }
-  if (IsEmpty(brokerAddress->start, (UseMqtt->start + UseMqtt->size) - brokerAddress->start)) {
+  if (IsEmpty(brokerAddress->start, (haTopic->start + haTopic->size) - brokerAddress->start)) {
     logger.printf("Settings: No mqtt settings, loading default");
     defaultMqttParameters();
   }
+  if (IsEmpty(haTopic->start, haTopic->size)) {
+    defaultHaParameters(true);
+  }
+
 #ifdef DO_ENCRYPT
   Item *oldItem = new Item(DT_STRING, ssid->start, ssid->size);
   String value;
@@ -343,6 +347,10 @@ void cSettings::initParameters() {
   startAddress += getSize(DT_BYTE);
   UseMqtt = new Item(DT_BYTE, startAddress);               // [bool]
   startAddress += getSize(DT_BYTE);
+  haDisco = new Item(DT_BYTE, startAddress);               // [bool]
+  startAddress += getSize(DT_BYTE);
+  haTopic = new Item(DT_STRING, startAddress, STANDARD_SIZE);
+  startAddress += PASSWORD_SIZE;
 
   memsize = startAddress;
 }
@@ -423,7 +431,18 @@ void cSettings::defaultMqttParameters() {
     set(mqttQos, bval = DEF_MQTTQOS);
     set(mqttRetain, bval = DEF_MQTTRETAIN);
     set(UseMqtt, bval = DEF_USEMQTT);
+    defaultHaParameters(false);
     update();
+}
+
+void cSettings::defaultHaParameters(bool doUpdate) {
+  String sval = "";
+  byte bval = true;
+  set(haDisco, bval = DEF_HADISCO);
+  set(haTopic, sval = DEF_HATOPIC);
+  if (doUpdate) {
+    update();
+  }
 }
 
 void cSettings::aesDecrypt(char *input, char *output, int dataLength) {

@@ -16,11 +16,14 @@ class JSON {
 public:
   JSON();
   String GetJson();
+  void AddItem(String tag, JSON item);
   void AddItem(String tag, String item);
+  void AddItem(String tag, char* item);
   void AddItem(String tag, int item);
   void AddItem(String tag, float item);
   void AddItem(String tag, boolean item);
   void AddArray(String tag, String item[], int n);
+  void Clear();
 private:
   void AddToJsonString(String result);
   String JsonString;

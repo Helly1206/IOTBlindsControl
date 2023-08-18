@@ -277,6 +277,7 @@ boolean CStateMachine::CheckTwilightGone(void) {
 
 // hotday start at mod
 void CStateMachine::SetHotDayTimeStart(void) {
+  Clock.newCommand();
   HotDayTimeStart = Clock.getMOD();
 }
 

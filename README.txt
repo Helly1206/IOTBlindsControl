@@ -1,4 +1,4 @@
-IOTBlindsControl v1.2.1
+IOTBlindsControl v1.3.0
 
 IOTBlindsControl - Smarthome controller for roller blinds
 ================ = ========= ========== === ====== ======
@@ -51,6 +51,7 @@ Functions:
 - Auto down/ up on temperature levels.
 - Auto down/ up on specific times when communication with backend fails.
 - Setup for blind by open/ close time.
+- MQTT auto discovery for home asistant if enabled.
 
 Installation:
 -------------
