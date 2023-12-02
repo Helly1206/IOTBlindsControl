@@ -100,6 +100,7 @@ class cMqtt {
                    offline = 2};
     static void callback(char* topic, byte* payload, unsigned int length);
     void sendStatus();
+    void isConnected();
     void reconnect();
     void homeAssistantDiscovery();
     static String getTag(String topic);

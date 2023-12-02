@@ -47,7 +47,7 @@ void cMqtt::init() {
 
 void cMqtt::handle() {
   if ((iotWifi.connected) && ((boolean)settings.getByte(settings.UseMqtt))) {
-    connected = client.connected();
+    isConnected();
     if (!connected) {
       if (!reconnect_wait) {
         xTimerStart(conTimer, portMAX_DELAY);
@@ -196,17 +196,30 @@ void cMqtt::sendStatus() { // publish on connected or (every ten minutes or) whe
   }
 }
 
+void cMqtt::isConnected() {
+  if (connected) {
+    connected = client.connected();
+    if (!connected) {
+      logger.printf(LOG_MQTT, "MQTT disconnected, state=" + String(client.state()));
+      logger.printf(logger.l14, "MQTT disconnected, state=" + String(client.state()));
+      client.disconnect();
+    }
+  }
+}
+
 void cMqtt::reconnect() {
-  boolean connAttempt = false;
+  int state = 0;
   String username = settings.getString(settings.mqttUsername);
   String password = settings.getString(settings.mqttPassword);
   if (username.length() > 0) {
-    connAttempt = client.connect(clientId.c_str(), username.c_str(), password.c_str());
+    client.connect(clientId.c_str(), username.c_str(), password.c_str());
   } else {
-    connAttempt = client.connect(clientId.c_str());
-  }  
+    client.connect(clientId.c_str());
+  } // don't use connect return value, as it returns old connection status.
+  state = client.state();
+  connected = client.connected();  
   
-  if (connAttempt) {
+  if (connected) {
     logger.printf(LOG_MQTT, "MQTT connected");
     logger.printf(logger.l14, "MQTT connected");
     int publishLen = (sizeof(PublishTopics) / sizeof(topics));
@@ -223,8 +236,8 @@ void cMqtt::reconnect() {
     }
     update();
   } else {
-    logger.printf(LOG_MQTT, "MQTT connection failed, rc=" + String(client.state()) + " try again in 5 seconds");
-    logger.printf(logger.l14, "MQTT connection failed, rc=" + String(client.state()) + " try again in 5 seconds");
+    logger.printf(LOG_MQTT, "MQTT connection failed, state=" + String(state) + " try again in " + String(MQTT_RECONNECT_TIME/1000) + " seconds");
+    logger.printf(logger.l14, "MQTT connection failed, state=" + String(state) + " try again in " + String(MQTT_RECONNECT_TIME/1000) + " seconds");
   }
   return;
 }
