@@ -332,7 +332,7 @@ void cMqtt::homeAssistantDiscovery() {
 
   jString.AddItem("name", ha_light.name);
   jString.AddItem("~", settings.getString(settings.mainTopic));
-  jString.AddItem("dev_cla", ha_light.cla);
+  //jString.AddItem("dev_cla", ha_light.cla);
   jString.AddItem("stat_t", "~/light_status");
   jString.AddItem("uniq_id", arraystr[1] + us(ha_light.id));
   jString.AddItem("dev", jDeviceString);

@@ -7,7 +7,7 @@
  * Copyright: Ivo Helwegen
  */
 
-#define APPVERSION       "v1.3.2"
+#define APPVERSION       "v1.3.3"
 
 #define BLINDUPDN_PIN  35 // GPIO35 // if blind then no chill or timer interrupts
 #define BLINDONOFF_PIN 33 // GPIO33

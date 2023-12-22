@@ -81,7 +81,7 @@ const hatopic ha_up     {"Up",          "up",     "",            "button"}; // n
 const hatopic ha_down   {"Down",        "down",   "",            "button"}; // name, id, cla, type
 const hatopic ha_shade  {"Shade",       "shade",  "",            "button"}; // name, id, cla, type
 const hatopic ha_temp   {"Temperature", "temp",   "temperature", "sensor"}; // name, id, cla, type
-const hatopic ha_light  {"Light",       "light",  "illuminance", "sensor"}; // name, id, cla, type
+const hatopic ha_light  {"Light",       "light",  "",            "sensor"}; // name, id, cla, type
 
 class cMqtt {
   public:
